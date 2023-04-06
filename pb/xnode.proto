@@ -1,0 +1,27 @@
+syntax = "proto3";
+package pb;
+
+// TODO: move it to core
+
+option go_package = "github.com/amin1024/xtelbot/pb";
+
+service XNodeGrpc {
+  rpc AddUser(AddUserCmd) returns (Response);
+  rpc Ping(Empty) returns (Empty);
+}
+
+message AddUserCmd {
+  uint64 Tid = 1;
+  string TUsername = 2;
+  string uuid = 3;
+  float TrafficAllowed = 4;
+  string ExpireAt = 5;
+  int64 PackageDays = 6;
+  string Mode = 7;
+}
+
+message Response {
+  string msg = 1;
+}
+
+message Empty {}

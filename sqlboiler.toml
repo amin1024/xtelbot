@@ -1,0 +1,4 @@
+output = "./core/repo/models"
+
+[sqlite3]
+dbname = "/home/amin/codes/xtelbot/db.db"
