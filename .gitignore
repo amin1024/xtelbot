@@ -212,3 +212,6 @@ note.txt
 tmp/
 db.db
 core/repo/db.db
+xtelbot
+logs/
+log.log

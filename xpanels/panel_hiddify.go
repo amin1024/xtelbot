@@ -3,15 +3,18 @@ package xpanels
 import (
 	"context"
 	"fmt"
+	confPackage "github.com/amin1024/xtelbot/conf"
 	"github.com/amin1024/xtelbot/pb"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"
 )
 
 func NewHiddifyPanel(xs *XrayService, conf map[string]string) *HiddifyPanel {
+	log := confPackage.NewLogger()
 	name, ok := conf["name"]
 	dbPath, _ := conf["db"]
 	if !ok {
@@ -26,6 +29,7 @@ func NewHiddifyPanel(xs *XrayService, conf map[string]string) *HiddifyPanel {
 		name: name,
 		db:   db,
 		xray: xs,
+		log:  log,
 	}
 }
 
@@ -36,6 +40,7 @@ type HiddifyPanel struct {
 	name string
 	db   *sqlx.DB
 	xray *XrayService
+	log  *zap.SugaredLogger
 }
 
 func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, error) {

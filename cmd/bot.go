@@ -33,7 +33,8 @@ var addXNodeCmd = &cobra.Command{
 			PanelType: args[1],
 		}
 		if err := core.AddXNode(&node); err != nil {
-			log.Fatal(err)
+			fmt.Println("failed. " + err.Error())
+			return
 		}
 		fmt.Println("XNode added.")
 	},

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/amin1024/xtelbot/conf"
 	"github.com/amin1024/xtelbot/core/repo"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/pb"
@@ -10,18 +11,12 @@ import (
 	"time"
 )
 
-var log *zap.SugaredLogger
-
-func init() {
-	l, _ := zap.NewProduction()
-	log = l.Sugar()
-}
-
 func NewUserService() *UserService {
 	repo.SetupDb()
 	repo.SetupPackage()
 	s := newNodesService()
 	userService := &UserService{
+		log:          conf.NewLogger(),
 		nodesService: s,
 	}
 
@@ -31,6 +26,7 @@ func NewUserService() *UserService {
 // -----------------------------------------------------------------
 
 type UserService struct {
+	log          *zap.SugaredLogger
 	nodesService *nodesService
 }
 
@@ -53,7 +49,7 @@ func (u *UserService) Register(tid uint64, username string, packageName string) 
 	}
 
 	if err := repo.SaveOrUpdateUser(user); err != nil {
-		log.Errorw("cannot register on db: "+err.Error(), "requested from(tid):", user.Tid)
+		u.log.Errorw("cannot register on db: "+err.Error(), "requested from(tid):", user.Tid)
 		return err
 	}
 	cmd := pb.AddUserCmd{
@@ -99,23 +95,3 @@ func (u *UserService) Status(uid uint64) (*models.Tuser, error) {
 func (u *UserService) DisabledCallback() error {
 	return nil
 }
-
-// -------------------------------------------------------------------
-//
-//func (u *UserService) buildUser(uid uint64, username string) (*models.Tuser, error) {
-//	p, err := repo.GetDefaultPackage()
-//	if err != nil {
-//		return nil, fmt.Errorf("cannot build the user: %w", err)
-//	}
-//	user := &models.Tuser{
-//		Tid:               uid,
-//		Username:          username,
-//		Active:            false,
-//		AddedToNodesCount: 0,
-//		TrafficUsage:      0,
-//		ExpireAt:          "",
-//		PackageID:         p,
-//	}
-//	user.SetPackage()
-//	return user, nil
-//}

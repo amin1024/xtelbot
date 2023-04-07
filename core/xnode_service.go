@@ -3,11 +3,14 @@ package core
 import (
 	"context"
 	"fmt"
+	"github.com/amin1024/xtelbot/conf"
 	"github.com/amin1024/xtelbot/core/repo"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/pb"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"log"
 	"sync"
 )
 
@@ -20,6 +23,7 @@ type xNode struct {
 
 type nodesService struct {
 	nodes []*xNode
+	log   *zap.SugaredLogger
 }
 
 func newNodesService() *nodesService {
@@ -41,6 +45,7 @@ func newNodesService() *nodesService {
 	// TODO: fatal error when there is no available client connection (success==0)
 	ns := nodesService{
 		nodes: nodes,
+		log:   conf.NewLogger(),
 	}
 	return &ns
 }
@@ -58,7 +63,7 @@ func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 		go func(node *xNode) {
 			_, err := node.client.AddUser(context.Background(), cmd)
 			if err != nil {
-				log.Errorw("panel cannot add user:"+err.Error(), "failed_node", node.data.Address)
+				x.log.Errorw("panel cannot add user:"+err.Error(), "failed_node", node.data.Address)
 				// TODO: notify the administrator
 				return
 			}
@@ -69,7 +74,7 @@ func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 
 	wg.Wait()
 
-	log.Infof("Added %d users on %d servers\n", success, len(x.nodes))
+	x.log.Infof("Added %d users on %d servers\n", success, len(x.nodes))
 	if success == 0 {
 		return 0, fmt.Errorf("failed to register user on any of the xNodes: %d - %s", cmd.Tid, cmd.TUsername)
 	}
@@ -85,7 +90,6 @@ func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.Error(err)
 		return nil, err
 	}
 	client := pb.NewXNodeGrpcClient(c)

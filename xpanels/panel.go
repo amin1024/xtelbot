@@ -2,8 +2,8 @@ package xpanels
 
 import (
 	"github.com/amin1024/xtelbot/pb"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"log"
 	"net"
 )
 
@@ -14,13 +14,6 @@ type IPanel interface {
 }
 
 // -----------------------------------------------------------------
-
-var log *zap.SugaredLogger
-
-func init() {
-	l, _ := zap.NewProduction()
-	log = l.Sugar()
-}
 
 // PanelBuilder builds a panel (hiddify, xui, etc.) based on the arguments
 func PanelBuilder(conf map[string]string) pb.XNodeGrpcServer {

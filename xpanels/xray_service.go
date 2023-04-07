@@ -2,6 +2,7 @@ package xpanels
 
 import (
 	"context"
+	"github.com/amin1024/xtelbot/conf"
 	handlerCommand "github.com/xtls/xray-core/app/proxyman/command"
 	statsCommand "github.com/xtls/xray-core/app/stats/command"
 	"github.com/xtls/xray-core/common/protocol"
@@ -9,6 +10,7 @@ import (
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 	"github.com/xtls/xray-core/proxy/vmess"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"regexp"
@@ -34,9 +36,12 @@ type XrayService struct {
 
 	handler handlerCommand.HandlerServiceClient
 	stats   statsCommand.StatsServiceClient
+
+	log *zap.SugaredLogger
 }
 
 func NewXrayService(addr string) *XrayService {
+	log := conf.NewLogger()
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
@@ -48,11 +53,12 @@ func NewXrayService(addr string) *XrayService {
 		Addr:    addr,
 		handler: h,
 		stats:   s,
+		log:     log,
 	}
 }
 
 func (x *XrayService) Restart() error {
-	log.Error("Not implemented yet")
+	x.log.Error("Not implemented yet")
 	return nil
 }
 
@@ -96,7 +102,7 @@ func (x *XrayService) AddClient(c XClient, inboundTag string) error {
 	} else if strings.Contains(inboundTag, "trojan") {
 		return x.addTrojanAccount(c, inboundTag)
 	}
-	log.Warnw("XrayService.AddClient: Unsupported inbound", "tag", inboundTag)
+	x.log.Warnw("XrayService.AddClient: Unsupported inbound", "tag", inboundTag)
 	return nil
 }
 
