@@ -4,6 +4,7 @@ const (
 	msgWtf = "خطای نامشخص"
 
 	msgAlreadyRegistered   = "شما قبلا ثبت نام کرده‌اید"
+	msgNotRegisteredYet    = "شما هنوز ثبت نام نکرده‌اید"
 	msgRegistrationFailed  = "در ثبت نام شما مشکلی به وجود آمد. لطفا با پشتیبانی تماس بگیرید"
 	msgRegistrationSuccess = "خوش آمدید"
 

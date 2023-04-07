@@ -103,6 +103,9 @@ func (b *BotHandler) Register(c tele.Context) error {
 func (b *BotHandler) TrafficUsage(c tele.Context) error {
 	tid := uint64(c.Sender().ID)
 	user, err := b.userService.Status(tid)
+	if errors.Is(err, e.UserNotFound) {
+		return c.Send(msgNotRegisteredYet)
+	}
 	if errors.Is(err, e.BaseError) {
 		return c.Send(msgWtf)
 	}
@@ -113,6 +116,9 @@ func (b *BotHandler) TrafficUsage(c tele.Context) error {
 func (b *BotHandler) Sub(c tele.Context) error {
 	tid := uint64(c.Sender().ID)
 	user, err := b.userService.Status(tid)
+	if errors.Is(err, e.UserNotFound) {
+		return c.Send(msgNotRegisteredYet)
+	}
 	if errors.Is(err, e.BaseError) {
 		return c.Send(msgWtf)
 	}
