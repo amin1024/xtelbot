@@ -16,17 +16,6 @@ on:
 
 jobs:
   goreleaser:
-    builds:
-      # You can have multiple builds defined as a yaml list
-      # ID of the build.
-      #
-      # Default: Binary name
-      - id: "linux-amd64"
-        goos:
-          - linux
-        goarch:
-          - amd64
-:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
