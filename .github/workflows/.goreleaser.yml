@@ -1,0 +1,10 @@
+builds:
+  # You can have multiple builds defined as a yaml list
+  # ID of the build.
+  #
+  # Default: Binary name
+  - id: "linux-amd64"
+    goos:
+      - linux
+    goarch:
+      - amd64
