@@ -34,9 +34,9 @@ func UserIdMiddleware(next tele.HandlerFunc) tele.HandlerFunc {
 
 func NewBotHandler() *BotHandler {
 	log.Info("Creating new bot")
-	token := os.Getenv("BOT_ENV")
+	token := os.Getenv("BOT_TOKEN")
 	if token == "" {
-		log.Fatal("BOT_ENV variable not found")
+		log.Fatal("BOT_TOKEN env variable not found")
 	}
 
 	pref := tele.Settings{
