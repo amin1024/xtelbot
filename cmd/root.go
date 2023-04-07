@@ -11,7 +11,7 @@ const version = 0.1
 func init() {
 	rootCmd.AddCommand(versionCmd, botCmd, panelCmd)
 	rootCmd.PersistentFlags().StringP("log-dir", "l", "", "Specify the log directory. By default writes to stdout")
-	viper.BindPFlag("logDir", rootCmd.PersistentFlags().Lookup("logDir"))
+	viper.BindPFlag("logDir", rootCmd.PersistentFlags().Lookup("log-dir"))
 }
 
 var rootCmd = &cobra.Command{

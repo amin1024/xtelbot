@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"log"
 	"sync"
 )
 
@@ -27,6 +26,7 @@ type nodesService struct {
 }
 
 func newNodesService() *nodesService {
+	log := conf.NewLogger()
 	nodesModels, err := repo.GetXNodes()
 	if err != nil {
 		log.Fatal(err)
@@ -35,6 +35,7 @@ func newNodesService() *nodesService {
 	for _, node := range nodesModels {
 		client, err := ConnectToXNode(node)
 		if err != nil {
+			log.Errorw("XNode warmup failed", "~address", node.Address)
 			continue
 		}
 		nodes = append(nodes, &xNode{
@@ -42,10 +43,11 @@ func newNodesService() *nodesService {
 			client: client,
 		})
 	}
+	log.Infof("connected to %d XNodes", len(nodes))
 	// TODO: fatal error when there is no available client connection (success==0)
 	ns := nodesService{
 		nodes: nodes,
-		log:   conf.NewLogger(),
+		log:   log,
 	}
 	return &ns
 }
@@ -61,14 +63,14 @@ func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 	for _, node := range x.nodes {
 		wg.Add(1)
 		go func(node *xNode) {
+			defer wg.Done()
 			_, err := node.client.AddUser(context.Background(), cmd)
 			if err != nil {
-				x.log.Errorw("panel cannot add user:"+err.Error(), "failed_node", node.data.Address)
+				x.log.Errorw("panel cannot add user:"+err.Error(), "~failed_node", node.data.Address)
 				// TODO: notify the administrator
 				return
 			}
 			success++
-			wg.Done()
 		}(node)
 	}
 
@@ -101,7 +103,7 @@ func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
 }
 
 func AddXNode(node *models.Xnode) error {
-	repo.SetupDb()
+	repo.AutoMigrate()
 	// TODO: we need a way to populate the new server by all the users we already have
 	// Find a better way to support data consistency! all nodes must be on the same state
 	_, err := ConnectToXNode(node)

@@ -48,13 +48,16 @@ func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, erro
 }
 
 func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb.Response, error) {
+	panel.log.Infow("Received AddUser cmd", cmd)
 	//// 1- Add a user to panel's database
 	if err := panel.add2panel(cmd); err != nil {
+		panel.log.Error("failed to add user to panel:", err)
 		return &pb.Response{}, status.Error(codes.Internal, err.Error())
 	}
 	// 2- Add a client to xray-core
 	err := panel.add2xray(cmd)
 	if err != nil {
+		panel.log.Error("failed to add user to xray-core:", err)
 		return &pb.Response{}, status.Error(codes.Aborted, fmt.Errorf("partially done: %w", err).Error())
 	}
 	// 3- Return a Response to the bot

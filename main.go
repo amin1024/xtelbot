@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"github.com/amin1024/xtelbot/cmd"
-	"github.com/amin1024/xtelbot/core/repo"
 )
 
 func main() {
@@ -13,6 +12,5 @@ func main() {
 	fmt.Println("\t\txTelBot")
 	fmt.Println("=========================================")
 
-	repo.AutoMigrate()
 	cmd.Execute()
 }

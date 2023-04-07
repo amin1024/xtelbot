@@ -12,7 +12,7 @@ import (
 )
 
 func NewUserService() *UserService {
-	repo.SetupDb()
+	repo.AutoMigrate()
 	repo.SetupPackage()
 	s := newNodesService()
 	userService := &UserService{
