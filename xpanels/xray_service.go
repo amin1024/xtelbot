@@ -106,7 +106,7 @@ func (x *XrayService) AddClient(c XClient, inboundTag string) error {
 	} else if strings.Contains(inboundTag, "trojan") {
 		return x.addTrojanAccount(c, inboundTag)
 	}
-	x.log.Warnw("XrayService.AddClient: Unsupported inbound", "tag", inboundTag)
+	//x.log.Warnw("XrayService.AddClient: Unsupported inbound", "tag", inboundTag)
 	return nil
 }
 

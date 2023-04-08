@@ -44,7 +44,7 @@ func (u *UserService) Register(tid uint64, username string, packageName string) 
 		Active:            false,
 		AddedToNodesCount: 0,
 		TrafficUsage:      0,
-		ExpireAt:          now.Add(time.Duration(p.Duration) * 24 * time.Hour).String(),
+		ExpireAt:          now.Add(time.Duration(p.Duration) * 24 * time.Hour).Format(time.RFC3339),
 		PackageID:         p.ID,
 	}
 

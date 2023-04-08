@@ -51,7 +51,7 @@ func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb
 	panel.log.Info("Received AddUser cmd ->", cmd)
 	//// 1- Add a user to panel's database
 	if err := panel.add2panel(cmd); err != nil {
-		panel.log.Error("failed to add user to panel:", err)
+		panel.log.Error("failed to add user to hiddify-db:", err)
 		return &pb.Response{}, status.Error(codes.Internal, err.Error())
 	}
 	// 2- Add a client to xray-core
@@ -71,16 +71,23 @@ func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
 	values(?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 	now := time.Now()
-	lastOnline := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	_, err := panel.db.Exec(
+	t, err := time.Parse(time.RFC3339, cmd.ExpireAt)
+	if err != nil {
+		return err
+	}
+	expireTime := t.Format("2006-01-02")
+	lastOnline := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	startDate := now.Format("2006-01-02")
+
+	_, err = panel.db.Exec(
 		q,
-		cmd.Uuid, cmd.TUsername, lastOnline, cmd.ExpireAt, cmd.TrafficAllowed, cmd.PackageDays,
-		cmd.Mode, now, 0,
+		cmd.Uuid, cmd.TUsername, lastOnline, expireTime, cmd.TrafficAllowed, cmd.PackageDays,
+		cmd.Mode, startDate, 0,
 	)
 	// ignore if user already exists
 	if err != nil {
-		err := err.(sqlite3.Error)
-		if err.Code != sqlite3.ErrConstraint {
+		err, ok := err.(sqlite3.Error)
+		if !ok || err.Code != sqlite3.ErrConstraint {
 			return err
 		}
 	}

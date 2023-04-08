@@ -9,5 +9,5 @@ const (
 	msgRegistrationSuccess = "خوش آمدید"
 
 	msgTraffic    = "ترافیک مصرفی شما %.2f گیگ است\nحد مجاز ترافیک %.0f گیگ است"
-	msgTmpSubLink = "لینک ساب شما:\n\n  https://disc1.stfu.bio/nN53MSEx3AN0O80qAJ/%s/all.txt?asn=MBT&mode=new\n"
+	msgTmpSubLink = "لینک ساب شما:\n\n  https://api3.abaan.info/nN53MSEx3AN0O80qAJ/%s/all.txt?mode=new\n"
 )
