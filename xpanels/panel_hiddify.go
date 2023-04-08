@@ -48,7 +48,7 @@ func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, erro
 }
 
 func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb.Response, error) {
-	panel.log.Infow("Received AddUser cmd", cmd)
+	panel.log.Info("Received AddUser cmd", cmd)
 	//// 1- Add a user to panel's database
 	if err := panel.add2panel(cmd); err != nil {
 		panel.log.Error("failed to add user to panel:", err)
@@ -60,6 +60,7 @@ func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb
 		panel.log.Error("failed to add user to xray-core:", err)
 		return &pb.Response{}, status.Error(codes.Aborted, fmt.Errorf("partially done: %w", err).Error())
 	}
+	panel.log.Infow("Successfully added user to inbounds", "~tid", cmd.Tid, "~username", cmd.TUsername)
 	// 3- Return a Response to the bot
 	return &pb.Response{}, nil
 }
