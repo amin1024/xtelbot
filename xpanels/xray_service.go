@@ -76,6 +76,10 @@ func (x *XrayService) GetInboundStats() (map[string]DownUpStat, error) {
 
 	for _, stat := range r.GetStat() {
 		matches := inboundRegex.FindStringSubmatch(stat.GetName())
+		if len(matches) != 3 {
+			//	we expect to match exactly []string{name, tag, downlink|uplink}
+			continue
+		}
 		inboundTag := matches[1]
 		m, ok := result[inboundTag]
 		if !ok {

@@ -48,7 +48,7 @@ func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, erro
 }
 
 func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb.Response, error) {
-	panel.log.Info("Received AddUser cmd", cmd)
+	panel.log.Info("Received AddUser cmd ->", cmd)
 	//// 1- Add a user to panel's database
 	if err := panel.add2panel(cmd); err != nil {
 		panel.log.Error("failed to add user to panel:", err)
@@ -126,5 +126,6 @@ func (panel *HiddifyPanel) getInboundNames() ([]string, error) {
 		}
 		names = append(names, name)
 	}
+	panel.log.Info("extracted inbound names:", names)
 	return names, nil
 }
