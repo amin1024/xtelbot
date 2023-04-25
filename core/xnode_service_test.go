@@ -23,14 +23,14 @@ func (m *mockedClient) Ping(ctx context.Context, in *pb.Empty, opts ...grpc.Call
 	panic("implement me")
 }
 
-func (m *mockedClient) GetSub(ctx context.Context, in *pb.UserInfo, opts ...grpc.CallOption) (*pb.SubContent, error) {
+func (m *mockedClient) GetSub(ctx context.Context, in *pb.UserInfoReq, opts ...grpc.CallOption) (*pb.SubContent, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *mockedClient) GetTrafficUsage(ctx context.Context, in *pb.UserInfo, opts ...grpc.CallOption) (*pb.TrafficUsage, error) {
+func (m *mockedClient) GetUserInfo(ctx context.Context, in *pb.UserInfoReq, opts ...grpc.CallOption) (*pb.UserInfo, error) {
 	//args := m.Called(mock.Anything, mock.Anything, mock.Anything)
-	return &pb.TrafficUsage{Amount: 100}, nil
+	return &pb.UserInfo{CurrentUsage: 100}, nil
 }
 
 //

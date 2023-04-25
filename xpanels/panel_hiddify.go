@@ -164,7 +164,7 @@ func (panel *HiddifyPanel) generateSubLinks(uid string) ([]string, error) {
 	return links, nil
 }
 
-func (panel *HiddifyPanel) GetSub(ctx context.Context, uInfo *pb.UserInfo) (*pb.SubContent, error) {
+func (panel *HiddifyPanel) GetSub(ctx context.Context, uInfo *pb.UserInfoReq) (*pb.SubContent, error) {
 	uid := uInfo.GetUuid()
 	// Check if uuid does exist in this panel
 	if _, err := panel.repo.GetUser(uid); err != nil {
@@ -258,7 +258,7 @@ func (panel *HiddifyPanel) renovateV2rayConfig(v2rayUri string, specs []Renovate
 	return v2rayUri
 }
 
-func (panel *HiddifyPanel) GetTrafficUsage(ctx context.Context, uInfo *pb.UserInfo) (*pb.TrafficUsage, error) {
+func (panel *HiddifyPanel) GetUserInfo(ctx context.Context, uInfo *pb.UserInfoReq) (*pb.UserInfo, error) {
 	uid := uInfo.GetUuid()
 	// Check if uuid does exist in this panel
 	user, err := panel.repo.GetUser(uid)
@@ -266,5 +266,11 @@ func (panel *HiddifyPanel) GetTrafficUsage(ctx context.Context, uInfo *pb.UserIn
 		panel.log.Errorw("[db] GetUser error", "uuid", uid, "detail", err)
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid UUID: %s", uid))
 	}
-	return &pb.TrafficUsage{Amount: user.UsageLimitGB}, nil
+	return &pb.UserInfo{
+		Uuid:         user.Uuid,
+		Name:         user.Name,
+		LastOnline:   user.LastOnline,
+		UsageLimit:   user.UsageLimitGB,
+		CurrentUsage: user.CurrentUsageGB,
+	}, nil
 }

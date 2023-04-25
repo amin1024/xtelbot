@@ -22,12 +22,13 @@ type KeyVal struct {
 }
 
 type User struct {
-	Id           uint64         `db:"id"`
-	Uuid         string         `db:"uuid"`
-	Name         string         `db:"name"`
-	LastOnline   string         `db:"last_online"`
-	ExpiryTime   sql.NullString `db:"expiry_time"`
-	UsageLimitGB float32        `db:"usage_limit_GB"`
+	Id             uint64         `db:"id"`
+	Uuid           string         `db:"uuid"`
+	Name           string         `db:"name"`
+	LastOnline     string         `db:"last_online"`
+	ExpiryTime     sql.NullString `db:"expiry_time"`
+	UsageLimitGB   float32        `db:"usage_limit_GB"`
+	CurrentUsageGB float32        `db:"current_usage_GB"`
 }
 
 type IHiddifyPanelRepo interface {

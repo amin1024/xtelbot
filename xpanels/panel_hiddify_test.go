@@ -20,7 +20,7 @@ func (r *mockedRepo) InsertRenovateRule(rule RenovateRule) error {
 	return nil
 }
 
-func (r *mockedRepo) ListRenovateRules() ([]*RenovateRule, error) {
+func (r *mockedRepo) ListRenovateRules() ([]RenovateRule, error) {
 	return nil, nil
 }
 
@@ -28,32 +28,44 @@ func (r *mockedRepo) InsertUser(uid, username, expireTime, startDate, mode strin
 	return nil
 }
 
-func (r *mockedRepo) GetGroupedRules() (map[string][]*RenovateRule, error) {
-	return map[string][]*RenovateRule{
-		"tls_WS_1": []*RenovateRule{
-			&RenovateRule{
+func (r *mockedRepo) GetDomains() ([]string, error) {
+	return nil, nil
+}
+
+func (r *mockedRepo) GetUser(uuid string) (User, error) {
+	return User{}, nil
+}
+
+func (r *mockedRepo) GetStrConfig() (map[string]string, error) {
+	return nil, nil
+}
+
+func (r *mockedRepo) GetGroupedRules() (map[string][]RenovateRule, error) {
+	return map[string][]RenovateRule{
+		"tls_WS_1": []RenovateRule{
+			RenovateRule{
 				Id:       1,
 				Remark:   "tls_WS_1",
 				OldValue: ":443",
 				NewValue: ":9999",
 			},
 		},
-		"gg": []*RenovateRule{
-			&RenovateRule{
+		"gg": []RenovateRule{
+			RenovateRule{
 				Id:       2,
 				Remark:   "gg",
 				OldValue: "host=api.google.info",
 				NewValue: "host=gg.com",
 			},
 		},
-		"tls_tcp_trojan": []*RenovateRule{
-			&RenovateRule{
+		"tls_tcp_trojan": []RenovateRule{
+			RenovateRule{
 				Id:       3,
 				Remark:   "tls_tcp_trojan",
 				OldValue: "host=api.google.info",
 				NewValue: "host=newHost.com",
 			},
-			&RenovateRule{
+			RenovateRule{
 				Id:       4,
 				Remark:   "tls_tcp_trojan",
 				OldValue: "@api.google.info",

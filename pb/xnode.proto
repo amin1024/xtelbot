@@ -8,8 +8,8 @@ option go_package = "github.com/amin1024/xtelbot/pb";
 service XNodeGrpc {
   rpc AddUser(AddUserCmd) returns (Response);
   rpc Ping(Empty) returns (Empty);
-  rpc GetSub(UserInfo) returns (SubContent);
-  rpc GetTrafficUsage(UserInfo) returns (TrafficUsage);
+  rpc GetSub(UserInfoReq) returns (SubContent);
+  rpc GetUserInfo(UserInfoReq) returns (UserInfo);
 }
 
 message AddUserCmd {
@@ -30,7 +30,7 @@ message Empty {}
 
 // --------------------------------------------------
 
-message UserInfo {
+message UserInfoReq {
   uint64 tid = 1;
   string tUsername = 2;
   string uuid = 3;
@@ -40,6 +40,10 @@ message SubContent {
   string Content = 1;
 }
 
-message TrafficUsage {
-  float Amount = 1;
+message UserInfo {
+  string Uuid = 1;
+  string Name = 2;
+  string LastOnline = 3;
+  float UsageLimit = 4;
+  float CurrentUsage = 5;
 }

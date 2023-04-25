@@ -97,7 +97,7 @@ func (x *nodesService) GetSubs(user *models.Tuser) []string {
 	wg := sync.WaitGroup{}
 	mu := sync.Mutex{}
 
-	uInfo := &pb.UserInfo{
+	uInfo := &pb.UserInfoReq{
 		Tid:       user.Tid,
 		TUsername: user.Username,
 		Uuid:      user.UUID,
@@ -126,13 +126,13 @@ func (x *nodesService) GetTrafficUsage(uid string) float32 {
 	ch := make(chan float32, len(x.nodes))
 	for _, node := range x.nodes {
 		go func(node *xNode) {
-			r, err := node.client.GetTrafficUsage(context.Background(), &pb.UserInfo{Uuid: uid})
+			r, err := node.client.GetUserInfo(context.Background(), &pb.UserInfoReq{Uuid: uid})
 			if err != nil {
 				x.log.Errorw("[xnode] GetTrafficUsage error", "uuid", uid, "detail", err)
 				ch <- 0
 				return
 			}
-			ch <- r.GetAmount()
+			ch <- r.GetCurrentUsage()
 		}(node)
 	}
 	var totalUsage float32
