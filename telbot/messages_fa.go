@@ -8,6 +8,7 @@ const (
 	msgRegistrationFailed  = "در ثبت نام شما مشکلی به وجود آمد. لطفا با پشتیبانی تماس بگیرید"
 	msgRegistrationSuccess = "خوش آمدید"
 
-	msgTraffic    = "ترافیک مصرفی شما %.2f گیگ است\nحد مجاز ترافیک %.0f گیگ است"
-	msgTmpSubLink = "لینک ساب شما:\n\n  https://api3.abaan.info/nN53MSEx3AN0O80qAJ/%s/all.txt?mode=new\n"
+	msgTraffic        = "ترافیک مصرفی شما %.2f گیگ است\nحد مجاز ترافیک %.0f گیگ است"
+	msgTmpSubLink     = "لینک ساب شما:\n\n  https://api3.abaan.info/nN53MSEx3AN0O80qAJ/%s/all.txt?mode=new\n"
+	msgSubLinkAndroid = "لینک ساب برای اندروید:\n"
 )

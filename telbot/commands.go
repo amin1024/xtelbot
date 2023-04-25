@@ -8,6 +8,7 @@ import (
 	"github.com/amin1024/xtelbot/core/e"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
+	"net/url"
 	"os"
 	"time"
 )
@@ -26,7 +27,7 @@ func UserIdMiddleware(next tele.HandlerFunc) tele.HandlerFunc {
 	}
 }
 
-func NewBotHandler() *BotHandler {
+func NewBotHandler(domainAddr string) *BotHandler {
 	log := conf.NewLogger()
 	log.Info("Creating new bot")
 	token := os.Getenv("BOT_TOKEN")
@@ -49,8 +50,12 @@ func NewBotHandler() *BotHandler {
 	h := BotHandler{
 		bot:         bot,
 		userService: core.NewUserService(),
+		domainAddr:  domainAddr,
 		log:         log,
 	}
+	// Start periodic runners
+	go h.userService.SpawnRunners()
+
 	bot.Handle("/hello", h.Hi)
 	bot.Handle("/start", h.Register)
 	bot.Handle("/usage", h.TrafficUsage)
@@ -64,6 +69,7 @@ func NewBotHandler() *BotHandler {
 type BotHandler struct {
 	bot         *tele.Bot
 	userService *core.UserService
+	domainAddr  string
 
 	log *zap.SugaredLogger
 }
@@ -122,5 +128,7 @@ func (b *BotHandler) Sub(c tele.Context) error {
 	if errors.Is(err, e.BaseError) {
 		return c.Send(msgWtf)
 	}
-	return c.Send(fmt.Sprintf(msgTmpSubLink, user.UUID))
+
+	url, _ := url.JoinPath("https://", b.domainAddr, "/v1/sub/")
+	return c.Send(msgSubLinkAndroid + url + user.Token)
 }

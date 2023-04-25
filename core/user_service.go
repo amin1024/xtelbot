@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/md5"
 	"fmt"
 	"github.com/amin1024/xtelbot/conf"
 	"github.com/amin1024/xtelbot/core/repo"
@@ -12,6 +13,7 @@ import (
 )
 
 func NewUserService() *UserService {
+	repo.SetupDb("db.db")
 	repo.AutoMigrate()
 	repo.SetupPackage()
 	s := newNodesService()
@@ -37,10 +39,13 @@ func (u *UserService) Register(tid uint64, username string, packageName string) 
 		return fmt.Errorf("cannot build the user: %w", err)
 	}
 	now := time.Now()
+	uid := uuid.New().String()
+	token := fmt.Sprintf("%x", md5.Sum([]byte(uid)))
 	user := &models.Tuser{
 		Tid:               tid,
 		Username:          username,
-		UUID:              uuid.New().String(),
+		UUID:              uid,
+		Token:             token,
 		Active:            false,
 		AddedToNodesCount: 0,
 		TrafficUsage:      0,
@@ -94,4 +99,41 @@ func (u *UserService) Status(uid uint64) (*models.Tuser, error) {
 // they have disabled a user due to traffic limit
 func (u *UserService) DisabledCallback() error {
 	return nil
+}
+
+// TrafficUsageRunner runs periodically to fetch the latest traffic-usage from xPanels
+func (u *UserService) TrafficUsageRunner() {
+	// TODO: Handle traffic reset, monthly, weekly, etc
+	t := time.Now()
+	users, err := repo.GetAllUsers()
+	if err != nil {
+		u.log.Errorw("[db] unable to list users", "detail", err)
+		// TODO: notify admins
+		return
+	}
+	// NOTE: it might be a good idea to run this as a batch goroutine
+	for _, user := range users {
+		amount := u.nodesService.GetTrafficUsage(user.UUID)
+		if amount <= user.TrafficUsage || amount == 0 {
+			continue
+		}
+		user.TrafficUsage = amount
+		if err := repo.UpdateUser(user); err != nil {
+			u.log.Errorw("[db] Cannot update traffic usage", "uuid", user.UUID, "detail", err)
+		}
+	}
+	elapsed := time.Since(t).Seconds()
+	u.log.Infof("successfully updated traffic-usage for %d users in %f seconds\n", len(users), elapsed)
+}
+
+func (u *UserService) SpawnRunners() {
+	u.log.Info("userService runners spawned")
+	go u.TrafficUsageRunner()
+
+	for {
+		select {
+		case <-time.After(20 * time.Minute): // update traffic-usage every x minutes
+			go u.TrafficUsageRunner()
+		}
+	}
 }

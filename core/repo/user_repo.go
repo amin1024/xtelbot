@@ -48,3 +48,26 @@ func GetUser(uid uint64) (*models.Tuser, error) {
 	}
 	return u, nil
 }
+
+func GetUserByToken(token string) (*models.Tuser, error) {
+	u, err := models.Tusers(
+		models.TuserWhere.Token.EQ(token),
+		models.TuserWhere.Active.EQ(true),
+	).One(context.Background(), db)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return u, e.UserNotFound
+		}
+		return u, fmt.Errorf("%s: %w", err, e.BaseError)
+	}
+	return u, nil
+}
+
+func GetAllUsers() ([]*models.Tuser, error) {
+	// TODO: potential bug when the number of users grow, work around it later on
+	users, err := models.Tusers(
+		models.TuserWhere.Active.EQ(true),
+	).All(context.Background(), db)
+
+	return users, err
+}

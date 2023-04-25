@@ -2,21 +2,18 @@ package repo
 
 import (
 	"context"
-	"embed"
 	"github.com/amin1024/xtelbot/core/e"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+	"os"
 	"testing"
 )
 
-//go:embed migrations/*.sql
-var embedMigrations embed.FS
-
-func init() {
-	SetupDb()
-
+func TestMain(m *testing.M) {
+	SetupDb("test_db.db")
+	AutoMigrate()
 	goose.SetBaseFS(embedMigrations)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		panic(err)
@@ -24,8 +21,9 @@ func init() {
 	if err := goose.Up(db, "migrations"); err != nil {
 		panic(err)
 	}
-
 	SetupPackage()
+	code := m.Run()
+	os.Exit(code)
 }
 
 // Populate tables with data
@@ -38,6 +36,8 @@ func populateUsers() []*models.Tuser {
 	tu := models.Tuser{
 		Tid:               1,
 		Username:          "fake_uid=1",
+		UUID:              "fake_uuid__1",
+		Token:             "fake_token__1",
 		Active:            true,
 		AddedToNodesCount: 3,
 		TrafficUsage:      41.3,
@@ -50,6 +50,8 @@ func populateUsers() []*models.Tuser {
 	tu2 := models.Tuser{
 		Tid:               2,
 		Username:          "fake_uid=2",
+		UUID:              "fake_uuid__2",
+		Token:             "fake_token__2",
 		Active:            false,
 		AddedToNodesCount: 0,
 		TrafficUsage:      0,
@@ -121,5 +123,4 @@ func TestRegisterMultipleTimes(t *testing.T) {
 	assert.Equal(t, p.Name, fromDb.R.Package.Name)
 	assert.Equal(t, u.ExpireAt, fromDb.ExpireAt)
 	assert.Equal(t, fromDb.Username, "NEW_USERNAME")
-
 }

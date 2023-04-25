@@ -8,7 +8,8 @@ import (
 )
 
 func NewLogger() *zap.SugaredLogger {
-	cfg := zap.NewProductionConfig()
+	//cfg := zap.NewProductionConfig()
+	cfg := zap.NewDevelopmentConfig()
 	logDir := viper.GetString("logDir")
 	if logDir != "" {
 		if err := os.MkdirAll(logDir, os.ModePerm); err != nil {

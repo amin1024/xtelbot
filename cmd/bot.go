@@ -2,18 +2,25 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/amin1024/xtelbot/api"
 	"github.com/amin1024/xtelbot/core"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/telbot"
 	"github.com/spf13/cobra"
 )
 
+var certFilePath string
+var keyFilePath string
+var domain string
+
 var botCmd = &cobra.Command{
 	Use:   "bot",
 	Short: "Start bot",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		bh := telbot.NewBotHandler()
+		bh := telbot.NewBotHandler(domain)
+		restHandler := api.NewRestHandler()
+		go restHandler.Start(certFilePath, keyFilePath)
 		bh.Start()
 	},
 }
@@ -42,4 +49,12 @@ var addXNodeCmd = &cobra.Command{
 
 func init() {
 	botCmd.AddCommand(addXNodeCmd)
+
+	// A certificate needed to listen on 443 port
+	botCmd.Flags().StringVar(&certFilePath, "cert", "fullchain.pem", "specify the path to cert file")
+	botCmd.Flags().StringVar(&keyFilePath, "key", "privkey.pem", "specify the path to key file")
+	botCmd.Flags().StringVar(&domain, "domain", "", "specify the domain address (which is certified by the --cert file) to serve the sub-link")
+	botCmd.MarkFlagRequired("cert")
+	botCmd.MarkFlagRequired("key")
+	botCmd.MarkFlagRequired("domain")
 }

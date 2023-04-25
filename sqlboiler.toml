@@ -1,4 +1,5 @@
 output = "./core/repo/models"
+no-tests = true
 
 [sqlite3]
-dbname = "/home/amin/codes/xtelbot/db.db"
+dbname = "./db.db"

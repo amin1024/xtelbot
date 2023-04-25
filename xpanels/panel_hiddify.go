@@ -10,35 +10,47 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
+const unreachableMsg = "You shouldn't see this warning!"
+
 func NewHiddifyPanel(xs *XrayService, conf map[string]string) *HiddifyPanel {
 	log := confPackage.NewLogger()
-	name, ok := conf["name"]
+	name := "hiddify.com" // Note: hiddify only works with Emails having "@hiddify.com" postfix
 	dbPath, _ := conf["db"]
-	if !ok {
-		name = "abc" // TODO: generate name
-	}
-	db, err := sqlx.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	repo := SetupHiddifyRepo(dbPath)
+	repo.migrate()
+
 	return &HiddifyPanel{
-		// TODO: Get this one from config
 		name: name,
-		db:   db,
+		repo: repo,
 		xray: xs,
 		log:  log,
 	}
 }
 
+func SetupHiddifyRepo(dbPath string) *HiddifyPanelRepo {
+	db, err := sqlx.Open("sqlite3", dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return &HiddifyPanelRepo{db: db}
+}
+
 // -----------------------------------------------------------------
 
+// HiddifyPanel implements pb.XNodeGrpcServer and SubRenovator
 type HiddifyPanel struct {
 	pb.UnimplementedXNodeGrpcServer
 	name string
-	db   *sqlx.DB
+	repo IHiddifyPanelRepo
 	xray *XrayService
 	log  *zap.SugaredLogger
 }
@@ -66,9 +78,6 @@ func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb
 }
 
 func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
-	q := `INSERT INTO
-	user(uuid, name, last_online, expiry_time, usage_limit_GB, package_days, mode, start_date, current_usage_GB)
-	values(?, ?, ?, ?, ?, ?, ?, ?, ?);`
 
 	now := time.Now()
 	t, err := time.Parse(time.RFC3339, cmd.ExpireAt)
@@ -79,11 +88,7 @@ func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
 	lastOnline := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	startDate := now.Format("2006-01-02")
 
-	_, err = panel.db.Exec(
-		q,
-		cmd.Uuid, cmd.TUsername, lastOnline, expireTime, cmd.TrafficAllowed, cmd.PackageDays,
-		cmd.Mode, startDate, 0,
-	)
+	err = panel.repo.InsertUser(cmd.Uuid, cmd.TUsername, expireTime, startDate, cmd.Mode, lastOnline, cmd.TrafficAllowed, cmd.PackageDays)
 	// ignore if user already exists
 	if err != nil {
 		err, ok := err.(sqlite3.Error)
@@ -97,7 +102,7 @@ func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
 func (panel *HiddifyPanel) add2xray(cmd *pb.AddUserCmd) error {
 	x := XClient{
 		Uuid:    cmd.Uuid,
-		Email:   cmd.Uuid + "@zood_server:" + panel.name,
+		Email:   cmd.Uuid + "@" + panel.name,
 		Level:   0,
 		AlterId: 0,
 	}
@@ -135,4 +140,131 @@ func (panel *HiddifyPanel) getInboundNames() ([]string, error) {
 	}
 	panel.log.Info("extracted inbound names:", names)
 	return names, nil
+}
+
+func (panel *HiddifyPanel) generateSubLinks(uid string) ([]string, error) {
+	var links []string
+
+	domains, err := panel.repo.GetDomains()
+	if err != nil || len(domains) < 1 {
+		return links, fmt.Errorf("[db] unable to query domain names - %w", err)
+	}
+
+	confs, err := panel.repo.GetStrConfig()
+	if err != nil {
+		return links, fmt.Errorf("[db] unable to query hiddify config key-values - %w", err)
+	}
+	proxyPath := confs["proxy_path"]
+
+	for _, domain := range domains {
+		s, _ := url.JoinPath("http://", domain, proxyPath, uid, "all.txt")
+		s = s + "?mode=new"
+		links = append(links, s)
+	}
+	return links, nil
+}
+
+func (panel *HiddifyPanel) GetSub(ctx context.Context, uInfo *pb.UserInfo) (*pb.SubContent, error) {
+	uid := uInfo.GetUuid()
+	// Check if uuid does exist in this panel
+	if _, err := panel.repo.GetUser(uid); err != nil {
+		panel.log.Errorw("[db] GetUser error", "uuid", uid, "detail", err)
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid UUID: %s", uid))
+	}
+	links, err := panel.generateSubLinks(uid)
+	if err != nil {
+		panel.log.Error(err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	var response *http.Response
+	// Fetch the first successful uri and ignore others
+	for _, uri := range links {
+		response, err = http.Get(uri) // TODO: add timeout context
+		if err != nil || response.StatusCode != http.StatusOK {
+			continue
+		}
+		break
+	}
+	if response == nil { // All URIs failed
+		panel.log.Errorw("failed to fetch sub-content from sub-links", "user-uuid", uid, "links", links)
+		return nil, status.Error(codes.Internal, "failed to fetch sub-links")
+	}
+	defer func() {
+		if response.Body != nil {
+			response.Body.Close()
+		}
+	}()
+	newSubContent, err := panel.Renovate(response.Body)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.SubContent{Content: newSubContent}, nil
+}
+
+func (panel *HiddifyPanel) Renovate(subContent io.Reader) (string, error) {
+	var result []string
+
+	data, err := io.ReadAll(subContent)
+	if err != nil {
+		return "", err
+	}
+	// Parse content assuming every V2ray config is being seperated by '\n'
+	lines := strings.Split(string(data), "\n")
+	if len(lines) < 10 { // Hack around it, todo
+		return "", fmt.Errorf("is a sub content with %d len valid", len(data))
+	}
+
+	groupSpecs, err := panel.repo.GetGroupedRules()
+	if err != nil {
+		panel.log.Error(err)
+		return "", err
+	}
+
+	// renovate every v2ray config found in the sub
+	for _, line := range lines {
+		if len(line) < 10 {
+			continue
+		}
+		v2rayUri := strings.TrimSpace(line)
+		if strings.HasPrefix(v2rayUri, "#") {
+			result = append(result, line)
+			continue
+		}
+		split := strings.Split(v2rayUri, "#")
+		if len(split) != 2 {
+			panel.log.Warnw(unreachableMsg, "v2rayUri", v2rayUri)
+			continue
+		}
+		rules, ok := groupSpecs[split[1]] // split[1] gives us the #remark in uri
+		if ok {
+			v2rayUri = panel.renovateV2rayConfig(v2rayUri, rules)
+		}
+		result = append(result, v2rayUri)
+	}
+
+	return strings.Join(result, "\n"), nil
+}
+
+// renovateV2rayConfig receives a single v2ray uri and modify it according to the rules.
+// Example uri vless://UUID@SERVER:PORT?security=tls&sni=SNI&type=grpc&serviceName=GRPC-NAME&#REMARK
+// We want to replace the #REMARK and :PORT, Therefore, two rules needed to be passed to this method.
+func (panel *HiddifyPanel) renovateV2rayConfig(v2rayUri string, specs []RenovateRule) string {
+	for _, spec := range specs {
+		if spec.Ignore {
+			return "# IGNORED #"
+		}
+		v2rayUri = strings.ReplaceAll(v2rayUri, spec.OldValue, spec.NewValue)
+	}
+	return v2rayUri
+}
+
+func (panel *HiddifyPanel) GetTrafficUsage(ctx context.Context, uInfo *pb.UserInfo) (*pb.TrafficUsage, error) {
+	uid := uInfo.GetUuid()
+	// Check if uuid does exist in this panel
+	user, err := panel.repo.GetUser(uid)
+	if err != nil {
+		panel.log.Errorw("[db] GetUser error", "uuid", uid, "detail", err)
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid UUID: %s", uid))
+	}
+	return &pb.TrafficUsage{Amount: user.UsageLimitGB}, nil
 }

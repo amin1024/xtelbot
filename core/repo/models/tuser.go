@@ -32,6 +32,7 @@ type Tuser struct {
 	TrafficUsage      float32 `boil:"traffic_usage" json:"traffic_usage" toml:"traffic_usage" yaml:"traffic_usage"`
 	ExpireAt          string  `boil:"expire_at" json:"expire_at" toml:"expire_at" yaml:"expire_at"`
 	PackageID         int64   `boil:"package_id" json:"package_id" toml:"package_id" yaml:"package_id"`
+	Token             string  `boil:"token" json:"token" toml:"token" yaml:"token"`
 
 	R *tuserR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L tuserL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -47,6 +48,7 @@ var TuserColumns = struct {
 	TrafficUsage      string
 	ExpireAt          string
 	PackageID         string
+	Token             string
 }{
 	ID:                "id",
 	Tid:               "tid",
@@ -57,6 +59,7 @@ var TuserColumns = struct {
 	TrafficUsage:      "traffic_usage",
 	ExpireAt:          "expire_at",
 	PackageID:         "package_id",
+	Token:             "token",
 }
 
 var TuserTableColumns = struct {
@@ -69,6 +72,7 @@ var TuserTableColumns = struct {
 	TrafficUsage      string
 	ExpireAt          string
 	PackageID         string
+	Token             string
 }{
 	ID:                "tuser.id",
 	Tid:               "tuser.tid",
@@ -79,6 +83,7 @@ var TuserTableColumns = struct {
 	TrafficUsage:      "tuser.traffic_usage",
 	ExpireAt:          "tuser.expire_at",
 	PackageID:         "tuser.package_id",
+	Token:             "tuser.token",
 }
 
 // Generated where
@@ -125,6 +130,7 @@ var TuserWhere = struct {
 	TrafficUsage      whereHelperfloat32
 	ExpireAt          whereHelperstring
 	PackageID         whereHelperint64
+	Token             whereHelperstring
 }{
 	ID:                whereHelperint64{field: "\"tuser\".\"id\""},
 	Tid:               whereHelperuint64{field: "\"tuser\".\"tid\""},
@@ -135,6 +141,7 @@ var TuserWhere = struct {
 	TrafficUsage:      whereHelperfloat32{field: "\"tuser\".\"traffic_usage\""},
 	ExpireAt:          whereHelperstring{field: "\"tuser\".\"expire_at\""},
 	PackageID:         whereHelperint64{field: "\"tuser\".\"package_id\""},
+	Token:             whereHelperstring{field: "\"tuser\".\"token\""},
 }
 
 // TuserRels is where relationship names are stored.
@@ -165,8 +172,8 @@ func (r *tuserR) GetPackage() *Package {
 type tuserL struct{}
 
 var (
-	tuserAllColumns            = []string{"id", "tid", "username", "uuid", "active", "added_to_nodes_count", "traffic_usage", "expire_at", "package_id"}
-	tuserColumnsWithoutDefault = []string{"tid", "username", "uuid", "expire_at", "package_id"}
+	tuserAllColumns            = []string{"id", "tid", "username", "uuid", "active", "added_to_nodes_count", "traffic_usage", "expire_at", "package_id", "token"}
+	tuserColumnsWithoutDefault = []string{"tid", "username", "uuid", "expire_at", "package_id", "token"}
 	tuserColumnsWithDefault    = []string{"id", "active", "added_to_nodes_count", "traffic_usage"}
 	tuserPrimaryKeyColumns     = []string{"id"}
 	tuserGeneratedColumns      = []string{"id"}

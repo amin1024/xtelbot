@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type XClient struct {
@@ -42,13 +43,16 @@ type XrayService struct {
 
 func NewXrayService(addr string) *XrayService {
 	log := conf.NewLogger()
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	log.Infof("Trying to dial xray on %s\n", addr)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-
 	h := handlerCommand.NewHandlerServiceClient(conn)
 	s := statsCommand.NewStatsServiceClient(conn)
+	log.Info("successfully dialed xray")
 	return &XrayService{
 		Addr:    addr,
 		handler: h,

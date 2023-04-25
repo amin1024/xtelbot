@@ -24,6 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 type XNodeGrpcClient interface {
 	AddUser(ctx context.Context, in *AddUserCmd, opts ...grpc.CallOption) (*Response, error)
 	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
+	GetSub(ctx context.Context, in *UserInfo, opts ...grpc.CallOption) (*SubContent, error)
+	GetTrafficUsage(ctx context.Context, in *UserInfo, opts ...grpc.CallOption) (*TrafficUsage, error)
 }
 
 type xNodeGrpcClient struct {
@@ -52,12 +54,32 @@ func (c *xNodeGrpcClient) Ping(ctx context.Context, in *Empty, opts ...grpc.Call
 	return out, nil
 }
 
+func (c *xNodeGrpcClient) GetSub(ctx context.Context, in *UserInfo, opts ...grpc.CallOption) (*SubContent, error) {
+	out := new(SubContent)
+	err := c.cc.Invoke(ctx, "/pb.XNodeGrpc/GetSub", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *xNodeGrpcClient) GetTrafficUsage(ctx context.Context, in *UserInfo, opts ...grpc.CallOption) (*TrafficUsage, error) {
+	out := new(TrafficUsage)
+	err := c.cc.Invoke(ctx, "/pb.XNodeGrpc/GetTrafficUsage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // XNodeGrpcServer is the server API for XNodeGrpc service.
 // All implementations must embed UnimplementedXNodeGrpcServer
 // for forward compatibility
 type XNodeGrpcServer interface {
 	AddUser(context.Context, *AddUserCmd) (*Response, error)
 	Ping(context.Context, *Empty) (*Empty, error)
+	GetSub(context.Context, *UserInfo) (*SubContent, error)
+	GetTrafficUsage(context.Context, *UserInfo) (*TrafficUsage, error)
 	mustEmbedUnimplementedXNodeGrpcServer()
 }
 
@@ -70,6 +92,12 @@ func (UnimplementedXNodeGrpcServer) AddUser(context.Context, *AddUserCmd) (*Resp
 }
 func (UnimplementedXNodeGrpcServer) Ping(context.Context, *Empty) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
+func (UnimplementedXNodeGrpcServer) GetSub(context.Context, *UserInfo) (*SubContent, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSub not implemented")
+}
+func (UnimplementedXNodeGrpcServer) GetTrafficUsage(context.Context, *UserInfo) (*TrafficUsage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTrafficUsage not implemented")
 }
 func (UnimplementedXNodeGrpcServer) mustEmbedUnimplementedXNodeGrpcServer() {}
 
@@ -120,6 +148,42 @@ func _XNodeGrpc_Ping_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _XNodeGrpc_GetSub_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XNodeGrpcServer).GetSub(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.XNodeGrpc/GetSub",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XNodeGrpcServer).GetSub(ctx, req.(*UserInfo))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _XNodeGrpc_GetTrafficUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XNodeGrpcServer).GetTrafficUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.XNodeGrpc/GetTrafficUsage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XNodeGrpcServer).GetTrafficUsage(ctx, req.(*UserInfo))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // XNodeGrpc_ServiceDesc is the grpc.ServiceDesc for XNodeGrpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +198,14 @@ var XNodeGrpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Ping",
 			Handler:    _XNodeGrpc_Ping_Handler,
+		},
+		{
+			MethodName: "GetSub",
+			Handler:    _XNodeGrpc_GetSub_Handler,
+		},
+		{
+			MethodName: "GetTrafficUsage",
+			Handler:    _XNodeGrpc_GetTrafficUsage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

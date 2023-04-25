@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"sync"
+	"time"
 )
 
 type xNode struct {
@@ -23,9 +24,16 @@ type xNode struct {
 type nodesService struct {
 	nodes []*xNode
 	log   *zap.SugaredLogger
+
+	sync.Mutex
 }
 
+var nodesServiceSingleton *nodesService
+
 func newNodesService() *nodesService {
+	if nodesServiceSingleton != nil {
+		return nodesServiceSingleton
+	}
 	log := conf.NewLogger()
 	nodesModels, err := repo.GetXNodes()
 	if err != nil {
@@ -45,11 +53,12 @@ func newNodesService() *nodesService {
 	}
 	log.Infof("connected to %d XNodes", len(nodes))
 	// TODO: fatal error when there is no available client connection (success==0)
-	ns := nodesService{
+	nodesServiceSingleton = &nodesService{
 		nodes: nodes,
 		log:   log,
 	}
-	return &ns
+
+	return nodesServiceSingleton
 }
 
 func (x *nodesService) ListXNodes() ([]xNode, error) {
@@ -83,13 +92,66 @@ func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 	return success, nil
 }
 
+func (x *nodesService) GetSubs(user *models.Tuser) []string {
+	var result []string
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+
+	uInfo := &pb.UserInfo{
+		Tid:       user.Tid,
+		TUsername: user.Username,
+		Uuid:      user.UUID,
+	}
+	for _, node := range x.nodes {
+		wg.Add(1)
+		go func(node *xNode) {
+			defer wg.Done()
+			sc, err := node.client.GetSub(context.Background(), uInfo)
+			if err != nil {
+				x.log.Errorw("unable to receive sub-content", "node", node)
+				return
+			}
+			mu.Lock()
+			result = append(result, sc.GetContent())
+			mu.Unlock()
+		}(node)
+	}
+	wg.Wait()
+	return result
+}
+
+func (x *nodesService) GetTrafficUsage(uid string) float32 {
+	x.Lock()
+	defer x.Unlock()
+	ch := make(chan float32, len(x.nodes))
+	for _, node := range x.nodes {
+		go func(node *xNode) {
+			r, err := node.client.GetTrafficUsage(context.Background(), &pb.UserInfo{Uuid: uid})
+			if err != nil {
+				x.log.Errorw("[xnode] GetTrafficUsage error", "uuid", uid, "detail", err)
+				ch <- 0
+				return
+			}
+			ch <- r.GetAmount()
+		}(node)
+	}
+	var totalUsage float32
+	for i := 0; i < len(x.nodes); i++ {
+		totalUsage = totalUsage + <-ch
+	}
+	return totalUsage
+}
+
 //------------------------------------------------
 
 func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	c, err := grpc.DialContext(
-		context.Background(),
+		ctx,
 		node.Address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, err
@@ -103,6 +165,7 @@ func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
 }
 
 func AddXNode(node *models.Xnode) error {
+	repo.SetupDb("db.db")
 	repo.AutoMigrate()
 	// TODO: we need a way to populate the new server by all the users we already have
 	// Find a better way to support data consistency! all nodes must be on the same state
