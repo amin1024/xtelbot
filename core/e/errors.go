@@ -17,8 +17,9 @@ var (
 
 	ReceiptPhotoWithoutActualPurchase = errors.New("received a photo while user does not have a purchase")
 
-	InvalidPurchaseIdFormat = errors.New("invalid purchase id format")
-	PurchaseNotFound        = errors.New("purchase not found")
+	InvalidPurchaseIdFormat  = errors.New("invalid purchase id format")
+	PurchaseNotFound         = errors.New("purchase not found")
+	PurchaseAlreadyProcessed = errors.New("purchase already processed")
 
 	PackageUpgradeFailedByXNodes = errors.New("xnodes failed to upgrade user's package")
 )

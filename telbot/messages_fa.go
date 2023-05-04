@@ -30,8 +30,8 @@ const (
 
 	msgPurchasePackage = "سفارش شما:\n\n" + "✅ %s\n" +
 		"✅ مبلغ جهت پرداخت: %s تومان (%s ریال)\n" +
-		"✅ شماره کارت:\n%s\n" +
-		"ـ——————————ـ\n" +
+		"✅ شماره کارت:\n`%s`\n" +
+		"——————————\n" +
 		"لطفا مبلغ بالا را به شماره کارتی که نوشته شده واریز کرده و فیش پرداختی را (به صورت عکس) در ادامه همین پیام ارسال کنید.\nپس از پرداخت شما حداکثر تا ۱۵ دقیقه پکیج برای شما فعال می‌شود.\n."
 	msgPurchaseNotification = "\n❕ New Purchase  ❕\n" +
 		"Username:                   @%s\n" +
@@ -43,4 +43,10 @@ const (
 	msgPhotoWithoutPurchase        = "در سیستم سفارشی برای شما ثبت نشده است. آیا قبل از ارسال عکس پکیج مورد نظر را انتخاب کرده‌اید؟"
 	msgPurchaseConfirmationFailed  = "confirmation process failed: FATAL ERROR"
 	msgPurchaseConfirmationSuccess = "done"
+	msgPurchaseSuccess             = "با سلام،\nسفارش شما توسط پشتیبانی تایید شد.\nاز همین حالا می‌توانید از پکیج «%s» خود استفاده کنید.\n\nبرای دیدن آموزش و راهنمایی از منو گزینه راهنما را انتخاب کنید.\nمتشکریم"
+	msgPurchaseRejected            = "با سلام،\nسفارش شما توسط پشتیبانی لغو شد. لطفا با پشتیبانی تماس بگیرید."
+	msgPurchaseAlreadyProcessed    = "get your shit together!"
+
+	//	--------------------------------------
+	msgUserTrafficLimitReached = "با سلام،\nترافیک مصرفی شما به پایان رسیده‌است. لطفا برای تمدید پکیج یا خرید پکیج دیگر از منو گزینه سفارش را بزنید.\nمتشکریم"
 )

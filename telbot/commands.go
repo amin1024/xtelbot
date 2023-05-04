@@ -32,8 +32,9 @@ func NewBotHandler(domainAddr string) *BotHandler {
 	}
 
 	pref := tele.Settings{
-		Token:  token,
-		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+		Token:     token,
+		Poller:    &tele.LongPoller{Timeout: 10 * time.Second},
+		ParseMode: tele.ModeMarkdown,
 	}
 
 	bot, err := tele.NewBot(pref)
@@ -43,11 +44,16 @@ func NewBotHandler(domainAddr string) *BotHandler {
 	}
 
 	userService := core.NewUserService()
+	notifyMe := make(chan core.Notification)
+	userService.SubscribeNotification(notifyMe)
+
 	h := BotHandler{
 		bot:         bot,
 		userService: userService,
 		domainAddr:  domainAddr,
 		log:         log,
+
+		userNotifyChannel: notifyMe,
 	}
 	// The bot needs at least 1 bank_card to handle purchases
 	if cards, err := userService.GetRandomBankCard(); err != nil || len(cards) == 0 {
@@ -133,6 +139,7 @@ func NewBotHandler(domainAddr string) *BotHandler {
 	h.purchaseNotifyChannel = make(chan repo.PurchaseNotify)
 	h.adminGroupId = tele.ChatID(-1001514626412) // I was told by god themselves to hard code it xD
 	go h.StartNotifyingAdmins()
+	go h.StartNotifyingUsers()
 
 	// Start periodic runners
 	go h.userService.SpawnRunners()
@@ -156,6 +163,8 @@ type BotHandler struct {
 
 	adminGroupId          tele.ChatID
 	purchaseNotifyChannel chan repo.PurchaseNotify
+
+	userNotifyChannel chan core.Notification
 }
 
 func (b *BotHandler) Start() {
@@ -184,6 +193,28 @@ func (b *BotHandler) StartNotifyingAdmins() {
 	}
 }
 
+func (b *BotHandler) StartNotifyingUsers() {
+	for notify := range b.userNotifyChannel {
+		var msg string
+		switch notify.Type {
+		case core.PurchaseSuccessful:
+			packageName := notify.Extra.(*models.Purchase).PackageName
+			msg = fmt.Sprintf(msgPurchaseSuccess, packageName)
+
+		case core.PurchaseRejected:
+			msg = msgPurchaseRejected
+
+		case core.UserMaxTrafficReached:
+			msg = msgUserTrafficLimitReached
+		}
+
+		_, err := b.bot.Send(&tele.User{ID: int64(notify.User.Tid)}, msg)
+		if err != nil {
+			b.log.Error(err)
+		}
+	}
+}
+
 func (b *BotHandler) Register(c tele.Context) error {
 	b.log.Info("Received: /start")
 	tid := uint64(c.Sender().ID)
@@ -191,7 +222,8 @@ func (b *BotHandler) Register(c tele.Context) error {
 	// Check if user is already registered
 	_, err := b.userService.Status(tid)
 	if err == nil {
-		return c.Send(msgAlreadyRegistered)
+		//return c.Send(msgAlreadyRegistered)
+		return c.Send(msgRegistrationSuccess)
 	}
 	if !errors.Is(err, e.UserNotFound) { // Any error other than UserNotFound considered as 5xx
 		return c.Send(msgWtf)
@@ -288,9 +320,13 @@ func (b *BotHandler) ApprovePurchase(c tele.Context) error {
 		b.log.Errorw("[unreachable error reached] purchaseId is empty")
 	}
 	if err := b.userService.ConfirmPurchase(purchaseId); err != nil {
+		if errors.Is(err, e.PurchaseAlreadyProcessed) {
+			b.bot.Reply(c.Callback().Message, msgPurchaseAlreadyProcessed)
+			return err
+		}
 		b.log.Error(err)
 		// Notify the admins about the inconvenience
-		_, err = b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationFailed)
+		b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationFailed)
 		return err
 	}
 	b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationSuccess)
@@ -303,9 +339,13 @@ func (b *BotHandler) RejectPurchase(c tele.Context) error {
 		b.log.Fatal("[unreachable error reached] purchaseId is empty")
 	}
 	if err := b.userService.RejectPurchase(purchaseId); err != nil {
+		if errors.Is(err, e.PurchaseAlreadyProcessed) {
+			b.bot.Reply(c.Callback().Message, msgPurchaseAlreadyProcessed)
+			return err
+		}
 		b.log.Error(err)
 		// Notify the admins about the inconvenience
-		_, err = b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationFailed)
+		b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationFailed)
 		return err
 	}
 	b.bot.Reply(c.Callback().Message, msgPurchaseConfirmationSuccess)

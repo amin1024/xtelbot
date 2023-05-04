@@ -33,8 +33,14 @@ func NewUserService() *UserService {
 // -----------------------------------------------------------------
 
 type UserService struct {
+	notificationChannels []chan<- Notification
+
 	log          *zap.SugaredLogger
 	nodesService *nodesService
+}
+
+func (u *UserService) SubscribeNotification(ch chan<- Notification) {
+	u.notificationChannels = append(u.notificationChannels, ch)
 }
 
 // Register a user on local repo and send a "AddClient" request to panels
@@ -216,6 +222,9 @@ func (u *UserService) processPurchase(purchaseId string, newStatus repo.Purchase
 		return e.InvalidPurchaseIdFormat
 	}
 	purchase, err := repo.GetPurchaseById(pid)
+	if purchase.Status != int64(repo.PurchaseUnknown) {
+		return e.PurchaseAlreadyProcessed
+	}
 	if err != nil {
 		return e.PurchaseNotFound
 	}
@@ -233,7 +242,21 @@ func (u *UserService) processPurchase(purchaseId string, newStatus repo.Purchase
 		u.log.Errorw("cannot update purchase's status", "detail", err)
 		return err
 	}
-
+	// Publish a new notification: users must be notified of the process result
+	n := Notification{
+		User:  purchase.R.Tuser,
+		Extra: purchase,
+	}
+	if newStatus == repo.PurchaseConfirmed {
+		n.Type = PurchaseSuccessful
+	} else if newStatus == repo.PurchaseRejected {
+		n.Type = PurchaseRejected
+	}
+	go func(n Notification) {
+		for _, ch := range u.notificationChannels {
+			ch <- n
+		}
+	}(n)
 	return nil
 }
 
