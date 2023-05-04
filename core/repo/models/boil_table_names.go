@@ -5,12 +5,16 @@ package models
 
 var TableNames = struct {
 	GooseDBVersion string
+	Keyval         string
 	Package        string
+	Purchase       string
 	Tuser          string
 	Xnode          string
 }{
 	GooseDBVersion: "goose_db_version",
+	Keyval:         "keyval",
 	Package:        "package",
+	Purchase:       "purchase",
 	Tuser:          "tuser",
 	Xnode:          "xnode",
 }

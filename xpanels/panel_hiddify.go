@@ -78,9 +78,8 @@ func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb
 }
 
 func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
-
 	now := time.Now()
-	t, err := time.Parse(time.RFC3339, cmd.ExpireAt)
+	t, err := time.Parse(time.RFC3339, cmd.Package.ExpireAt)
 	if err != nil {
 		return err
 	}
@@ -88,7 +87,7 @@ func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
 	lastOnline := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	startDate := now.Format("2006-01-02")
 
-	err = panel.repo.InsertUser(cmd.Uuid, cmd.TUsername, expireTime, startDate, cmd.Mode, lastOnline, cmd.TrafficAllowed, cmd.PackageDays)
+	err = panel.repo.InsertUser(cmd.Uuid, cmd.TUsername, expireTime, startDate, cmd.Package.Mode, lastOnline, cmd.Package.TrafficAllowed, cmd.Package.PackageDays)
 	// ignore if user already exists
 	if err != nil {
 		err, ok := err.(sqlite3.Error)
@@ -241,6 +240,9 @@ func (panel *HiddifyPanel) Renovate(subContent io.Reader) (string, error) {
 		}
 		result = append(result, v2rayUri)
 	}
+	if len(result) == 0 {
+		return "", fmt.Errorf("sub-content without any valid v2ray config")
+	}
 
 	return strings.Join(result, "\n"), nil
 }
@@ -272,5 +274,30 @@ func (panel *HiddifyPanel) GetUserInfo(ctx context.Context, uInfo *pb.UserInfoRe
 		LastOnline:   user.LastOnline,
 		UsageLimit:   user.UsageLimitGB,
 		CurrentUsage: user.CurrentUsageGB,
+	}, nil
+}
+
+func (panel *HiddifyPanel) UpgradeUserPackage(ctx context.Context, cmd *pb.AddPackageCmd) (*pb.Response, error) {
+	uid := cmd.GetUuid()
+	user, err := panel.repo.GetUser(uid)
+	if err != nil {
+		panel.log.Errorw("[db] GetUser error", "uuid", uid, "detail", err)
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid UUID: %s", uid))
+	}
+	p := cmd.Package
+	t, err := time.Parse(time.RFC3339, p.ExpireAt)
+	if err != nil {
+		return &pb.Response{}, status.Error(codes.Internal, err.Error())
+	}
+
+	expireTime := t.Format("2006-01-02")
+	startDate := time.Now().Format("2006-01-02")
+	trafficAllowed := p.TrafficAllowed * 85 / 100
+	if err := panel.repo.UpdateUserPackage(user.Uuid, expireTime, startDate, p.Mode, trafficAllowed, p.PackageDays); err != nil {
+		return &pb.Response{}, status.Error(codes.Internal, err.Error())
+	}
+	panel.log.Infow("successfully upgraded user on panel", "userUUID", uid, "duration", p.PackageDays, "trafficAllowed", trafficAllowed)
+	return &pb.Response{
+		Msg: "Done",
 	}, nil
 }

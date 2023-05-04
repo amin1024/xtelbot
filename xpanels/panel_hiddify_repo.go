@@ -3,6 +3,7 @@ package xpanels
 import (
 	"database/sql"
 	"embed"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
 	"time"
@@ -35,6 +36,7 @@ type IHiddifyPanelRepo interface {
 	ListRenovateRules() ([]RenovateRule, error)
 	GetGroupedRules() (map[string][]RenovateRule, error)
 	GetUser(uuid string) (User, error)
+	UpdateUserPackage(uuid, expireTime, startDate, mode string, trafficAllowed float32, packageDays int64) error
 	InsertUser(uid, username, expireTime, startDate, mode string, lastOnline time.Time, trafficAllowed float32, packageDays int64) error
 	InsertRenovateRule(rule RenovateRule) error
 	GetDomains() ([]string, error)
@@ -104,6 +106,20 @@ func (r *HiddifyPanelRepo) InsertUser(
 		mode, startDate, 0,
 	)
 	return err
+}
+
+func (r *HiddifyPanelRepo) UpdateUserPackage(uuid, expireTime, startDate, mode string, trafficAllowed float32, packageDays int64) error {
+	// Note: also reset the current usage
+	q := `UPDATE user SET expiry_time = ?, start_date = ?, mode = ?, usage_limit_GB =?, current_usage_GB=?, package_days =? WHERE uuid = ?`
+	res, err := r.db.Exec(q, expireTime, startDate, mode, trafficAllowed, 0, packageDays, uuid)
+	if err != nil {
+		return err
+	}
+	nOfRows, err := res.RowsAffected()
+	if err != nil || nOfRows != 1 {
+		return fmt.Errorf("failed to update user with uuid = %s", uuid)
+	}
+	return nil
 }
 
 func (r *HiddifyPanelRepo) InsertRenovateRule(rule RenovateRule) error {

@@ -108,7 +108,7 @@ func (x *nodesService) GetSubs(user *models.Tuser) []string {
 			defer wg.Done()
 			sc, err := node.client.GetSub(context.Background(), uInfo)
 			if err != nil {
-				x.log.Errorw("unable to receive sub-content", "node", node)
+				x.log.Errorw("unable to receive sub-content", "node", node.data.Address, "remote error", err)
 				return
 			}
 			mu.Lock()
@@ -140,6 +140,36 @@ func (x *nodesService) GetTrafficUsage(uid string) float32 {
 		totalUsage = totalUsage + <-ch
 	}
 	return totalUsage
+}
+
+func (x *nodesService) UpgradeUserPackage(userUuid string, pck *models.Package) error {
+	expireAt := time.Now().Add(time.Hour * 24 * time.Duration(pck.Duration))
+	cmd := &pb.AddPackageCmd{
+		Uuid: userUuid,
+		Package: &pb.Package{
+			TrafficAllowed: pck.TrafficAllowed,
+			ExpireAt:       expireAt.Format(time.RFC3339),
+			PackageDays:    pck.Duration,
+			Mode:           pck.ResetMode,
+		},
+	}
+	wg := sync.WaitGroup{}
+	var fails error
+	for _, node := range x.nodes {
+		wg.Add(1)
+		go func(node *xNode) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_, err := node.client.UpgradeUserPackage(ctx, cmd)
+			if err != nil {
+				x.log.Errorw("xNode failed to upgrade user: ", "xNode", node.data.Address, "uuid", userUuid, "packageId", pck.ID, "detail", err)
+				fails = fmt.Errorf("failed xnode: %s", node.data.Address)
+			}
+		}(node)
+	}
+	wg.Wait()
+	return fails
 }
 
 //------------------------------------------------

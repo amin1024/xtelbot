@@ -215,3 +215,5 @@ core/repo/db.db
 xtelbot
 logs/
 log.log
+core/repo/test_db.db
+misc/hiddifypanel.db

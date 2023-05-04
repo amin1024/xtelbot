@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// implements IHiddifyPanelRepo
 type mockedRepo struct {
 	db *sqlx.DB
 }
@@ -38,6 +39,10 @@ func (r *mockedRepo) GetUser(uuid string) (User, error) {
 
 func (r *mockedRepo) GetStrConfig() (map[string]string, error) {
 	return nil, nil
+}
+
+func (r *mockedRepo) UpdateUserPackage(uuid, expireTime, startDate, mode string, trafficAllowed float32, packageDays int64) error {
+	return nil
 }
 
 func (r *mockedRepo) GetGroupedRules() (map[string][]RenovateRule, error) {
@@ -97,19 +102,21 @@ func (a HiddifyDateString) Match(v driver.Value) bool {
 
 func TestHiddifyPanel_Add2panel(t *testing.T) {
 	cmd := pb.AddUserCmd{
-		Tid:            1,
-		TUsername:      "u1",
-		Uuid:           "u1_UUID",
-		TrafficAllowed: 4,
-		ExpireAt:       "2023-10-10T15:04:05Z",
-		PackageDays:    11,
-		Mode:           "daily",
+		Tid:       1,
+		TUsername: "u1",
+		Uuid:      "u1_UUID",
+		Package: &pb.Package{
+			TrafficAllowed: 4,
+			ExpireAt:       "2023-10-10T15:04:05Z",
+			PackageDays:    11,
+			Mode:           "daily",
+		},
 	}
 
 	mdb, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 	mock.ExpectExec("INSERT INTO user").
-		WithArgs(cmd.Uuid, cmd.TUsername, sqlmock.AnyArg(), HiddifyDateString{}, cmd.TrafficAllowed, cmd.PackageDays, cmd.Mode, HiddifyDateString{}, 0).
+		WithArgs(cmd.Uuid, cmd.TUsername, sqlmock.AnyArg(), HiddifyDateString{}, cmd.Package.TrafficAllowed, cmd.Package.PackageDays, cmd.Package.Mode, HiddifyDateString{}, 0).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	db := sqlx.NewDb(mdb, "sqlite3")

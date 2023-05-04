@@ -111,15 +111,6 @@ func (w whereHelperuint64) NIN(slice []uint64) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
-type whereHelperbool struct{ field string }
-
-func (w whereHelperbool) EQ(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
-func (w whereHelperbool) NEQ(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
-func (w whereHelperbool) LT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
-func (w whereHelperbool) LTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
-func (w whereHelperbool) GT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
-func (w whereHelperbool) GTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
-
 var TuserWhere = struct {
 	ID                whereHelperint64
 	Tid               whereHelperuint64
@@ -146,14 +137,17 @@ var TuserWhere = struct {
 
 // TuserRels is where relationship names are stored.
 var TuserRels = struct {
-	Package string
+	Package   string
+	Purchases string
 }{
-	Package: "Package",
+	Package:   "Package",
+	Purchases: "Purchases",
 }
 
 // tuserR is where relationships are stored.
 type tuserR struct {
-	Package *Package `boil:"Package" json:"Package" toml:"Package" yaml:"Package"`
+	Package   *Package      `boil:"Package" json:"Package" toml:"Package" yaml:"Package"`
+	Purchases PurchaseSlice `boil:"Purchases" json:"Purchases" toml:"Purchases" yaml:"Purchases"`
 }
 
 // NewStruct creates a new relationship struct
@@ -166,6 +160,13 @@ func (r *tuserR) GetPackage() *Package {
 		return nil
 	}
 	return r.Package
+}
+
+func (r *tuserR) GetPurchases() PurchaseSlice {
+	if r == nil {
+		return nil
+	}
+	return r.Purchases
 }
 
 // tuserL is where Load methods for each relationship are stored.
@@ -468,6 +469,20 @@ func (o *Tuser) Package(mods ...qm.QueryMod) packageQuery {
 	return Packages(queryMods...)
 }
 
+// Purchases retrieves all the purchase's Purchases with an executor.
+func (o *Tuser) Purchases(mods ...qm.QueryMod) purchaseQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.Where("\"purchase\".\"tuser_id\"=?", o.ID),
+	)
+
+	return Purchases(queryMods...)
+}
+
 // LoadPackage allows an eager lookup of values, cached into the
 // loaded structs of the objects. This is for an N-1 relationship.
 func (tuserL) LoadPackage(ctx context.Context, e boil.ContextExecutor, singular bool, maybeTuser interface{}, mods queries.Applicator) error {
@@ -588,6 +603,120 @@ func (tuserL) LoadPackage(ctx context.Context, e boil.ContextExecutor, singular 
 	return nil
 }
 
+// LoadPurchases allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (tuserL) LoadPurchases(ctx context.Context, e boil.ContextExecutor, singular bool, maybeTuser interface{}, mods queries.Applicator) error {
+	var slice []*Tuser
+	var object *Tuser
+
+	if singular {
+		var ok bool
+		object, ok = maybeTuser.(*Tuser)
+		if !ok {
+			object = new(Tuser)
+			ok = queries.SetFromEmbeddedStruct(&object, &maybeTuser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", object, maybeTuser))
+			}
+		}
+	} else {
+		s, ok := maybeTuser.(*[]*Tuser)
+		if ok {
+			slice = *s
+		} else {
+			ok = queries.SetFromEmbeddedStruct(&slice, maybeTuser)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", slice, maybeTuser))
+			}
+		}
+	}
+
+	args := make([]interface{}, 0, 1)
+	if singular {
+		if object.R == nil {
+			object.R = &tuserR{}
+		}
+		args = append(args, object.ID)
+	} else {
+	Outer:
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &tuserR{}
+			}
+
+			for _, a := range args {
+				if a == obj.ID {
+					continue Outer
+				}
+			}
+
+			args = append(args, obj.ID)
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	query := NewQuery(
+		qm.From(`purchase`),
+		qm.WhereIn(`purchase.tuser_id in ?`, args...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.QueryContext(ctx, e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load purchase")
+	}
+
+	var resultSlice []*Purchase
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice purchase")
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on purchase")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for purchase")
+	}
+
+	if len(purchaseAfterSelectHooks) != 0 {
+		for _, obj := range resultSlice {
+			if err := obj.doAfterSelectHooks(ctx, e); err != nil {
+				return err
+			}
+		}
+	}
+	if singular {
+		object.R.Purchases = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &purchaseR{}
+			}
+			foreign.R.Tuser = object
+		}
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ID == foreign.TuserID {
+				local.R.Purchases = append(local.R.Purchases, foreign)
+				if foreign.R == nil {
+					foreign.R = &purchaseR{}
+				}
+				foreign.R.Tuser = local
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
 // SetPackage of the tuser to the related item.
 // Sets o.R.Package to related.
 // Adds o to related.R.Tusers.
@@ -632,6 +761,59 @@ func (o *Tuser) SetPackage(ctx context.Context, exec boil.ContextExecutor, inser
 		related.R.Tusers = append(related.R.Tusers, o)
 	}
 
+	return nil
+}
+
+// AddPurchases adds the given related objects to the existing relationships
+// of the tuser, optionally inserting them as new records.
+// Appends related to o.R.Purchases.
+// Sets related.R.Tuser appropriately.
+func (o *Tuser) AddPurchases(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Purchase) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			rel.TuserID = o.ID
+			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		} else {
+			updateQuery := fmt.Sprintf(
+				"UPDATE \"purchase\" SET %s WHERE %s",
+				strmangle.SetParamNames("\"", "\"", 0, []string{"tuser_id"}),
+				strmangle.WhereClause("\"", "\"", 0, purchasePrimaryKeyColumns),
+			)
+			values := []interface{}{o.ID, rel.ID}
+
+			if boil.IsDebug(ctx) {
+				writer := boil.DebugWriterFrom(ctx)
+				fmt.Fprintln(writer, updateQuery)
+				fmt.Fprintln(writer, values)
+			}
+			if _, err = exec.ExecContext(ctx, updateQuery, values...); err != nil {
+				return errors.Wrap(err, "failed to update foreign table")
+			}
+
+			rel.TuserID = o.ID
+		}
+	}
+
+	if o.R == nil {
+		o.R = &tuserR{
+			Purchases: related,
+		}
+	} else {
+		o.R.Purchases = append(o.R.Purchases, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &purchaseR{
+				Tuser: o,
+			}
+		} else {
+			rel.R.Tuser = o
+		}
+	}
 	return nil
 }
 

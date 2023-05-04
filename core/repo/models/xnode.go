@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,10 +23,10 @@ import (
 
 // Xnode is an object representing the database table.
 type Xnode struct {
-	ID        int64     `boil:"id" json:"id" toml:"id" yaml:"id"`
-	Address   string    `boil:"address" json:"address" toml:"address" yaml:"address"`
-	PanelType string    `boil:"panel_type" json:"panel_type" toml:"panel_type" yaml:"panel_type"`
-	Active    null.Bool `boil:"active" json:"active,omitempty" toml:"active" yaml:"active,omitempty"`
+	ID        int64  `boil:"id" json:"id" toml:"id" yaml:"id"`
+	Address   string `boil:"address" json:"address" toml:"address" yaml:"address"`
+	PanelType string `boil:"panel_type" json:"panel_type" toml:"panel_type" yaml:"panel_type"`
+	Active    bool   `boil:"active" json:"active" toml:"active" yaml:"active"`
 
 	R *xnodeR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L xnodeL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -63,12 +62,12 @@ var XnodeWhere = struct {
 	ID        whereHelperint64
 	Address   whereHelperstring
 	PanelType whereHelperstring
-	Active    whereHelpernull_Bool
+	Active    whereHelperbool
 }{
 	ID:        whereHelperint64{field: "\"xnode\".\"id\""},
 	Address:   whereHelperstring{field: "\"xnode\".\"address\""},
 	PanelType: whereHelperstring{field: "\"xnode\".\"panel_type\""},
-	Active:    whereHelpernull_Bool{field: "\"xnode\".\"active\""},
+	Active:    whereHelperbool{field: "\"xnode\".\"active\""},
 }
 
 // XnodeRels is where relationship names are stored.

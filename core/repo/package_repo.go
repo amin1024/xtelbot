@@ -8,7 +8,7 @@ import (
 var defaultPackage *models.Package
 
 func SetupPackage() {
-	dp, err := models.Packages(models.PackageWhere.Name.EQ("basic_test")).One(context.Background(), db)
+	dp, err := models.Packages(models.PackageWhere.Name.EQ("_free_")).One(context.Background(), db)
 	if err != nil {
 		panic(err)
 	}
@@ -24,4 +24,8 @@ func GetPackage(name string) (*models.Package, error) {
 		return nil, err
 	}
 	return p, nil
+}
+
+func GetAllPackages() ([]*models.Package, error) {
+	return models.Packages(models.PackageWhere.Active.EQ(true)).All(context.Background(), db)
 }

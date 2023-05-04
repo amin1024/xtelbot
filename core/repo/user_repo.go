@@ -33,10 +33,28 @@ func UpdateUser(u *models.Tuser) error {
 	return nil
 }
 
-func GetUser(uid uint64) (*models.Tuser, error) {
+func GetUserByTid(uid uint64) (*models.Tuser, error) {
 	u, err := models.Tusers(
 		qm.Load(models.TuserRels.Package),
 		qm.Where(models.TuserColumns.Tid+"=?", uid),
+	).One(context.Background(), db)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return u, e.UserNotFound
+		}
+		return u, fmt.Errorf("%s: %w", err, e.BaseError)
+	}
+	//if !u.Active {
+	//	return u, e.UserIsNotActive
+	//}
+	return u, nil
+}
+
+func GetUser(userId int64) (*models.Tuser, error) {
+	u, err := models.Tusers(
+		qm.Load(models.TuserRels.Package),
+		qm.Where(models.TuserColumns.ID+"=?", userId),
 		qm.And("active=?", true),
 	).One(context.Background(), db)
 

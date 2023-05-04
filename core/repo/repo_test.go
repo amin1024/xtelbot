@@ -12,6 +12,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// delete old test_db.db
+	os.Remove("test_db.db")
 	SetupDb("test_db.db")
 	AutoMigrate()
 	goose.SetBaseFS(embedMigrations)
@@ -77,7 +79,7 @@ func TestGetUser(t *testing.T) {
 	populateUsers()
 
 	// test if no user found
-	_, err := GetUser(111)
+	_, err := GetUserByTid(111)
 	assert.ErrorIs(t, err, e.UserNotFound)
 
 	// add a deactivated user
@@ -89,21 +91,21 @@ func TestGetUser(t *testing.T) {
 	}
 	assert.NoError(t, tu.Insert(context.Background(), db, boil.Infer()))
 
-	// We expect GetUser to ignore the `tid=111` because it is not activated yet
-	_, err = GetUser(111)
+	// We expect GetUserByTid to ignore the `tid=111` because it is not activated yet
+	_, err = GetUserByTid(111)
 	assert.ErrorIs(t, err, e.UserNotFound)
 
 	// Activate the user
 	tu.Active = true
 	assert.NoError(t, UpdateUser(&tu))
 
-	u, err := GetUser(111)
+	u, err := GetUserByTid(111)
 	assert.NoError(t, err, e.UserNotFound)
 	assert.Equal(t, uint64(111), u.Tid)
 	//p, err := u.Package().One(context.Background(), db)
 	//assert.NoError(t, err)
 	//assert.Equal(t, float32(1), p.TrafficAllowed)
-	assert.Equal(t, float32(5), u.R.Package.TrafficAllowed)
+	assert.Equal(t, float32(1), u.R.Package.TrafficAllowed)
 }
 
 func TestRegisterMultipleTimes(t *testing.T) {
@@ -118,7 +120,7 @@ func TestRegisterMultipleTimes(t *testing.T) {
 	u.Username = "NEW_USERNAME"
 	assert.NoError(t, SaveOrUpdateUser(u))
 
-	fromDb, _ := GetUser(u.Tid)
+	fromDb, _ := GetUserByTid(u.Tid)
 	assert.Equal(t, u.UUID, fromDb.UUID)
 	assert.Equal(t, p.Name, fromDb.R.Package.Name)
 	assert.Equal(t, u.ExpireAt, fromDb.ExpireAt)

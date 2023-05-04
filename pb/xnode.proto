@@ -10,16 +10,26 @@ service XNodeGrpc {
   rpc Ping(Empty) returns (Empty);
   rpc GetSub(UserInfoReq) returns (SubContent);
   rpc GetUserInfo(UserInfoReq) returns (UserInfo);
+  rpc UpgradeUserPackage(AddPackageCmd) returns (Response);
 }
 
 message AddUserCmd {
   uint64 Tid = 1;
   string TUsername = 2;
   string uuid = 3;
-  float TrafficAllowed = 4;
-  string ExpireAt = 5;
-  int64 PackageDays = 6;
-  string Mode = 7;
+  Package package = 4;
+}
+
+message AddPackageCmd {
+  string uuid = 1;
+  Package package = 2;
+}
+
+message Package {
+  float TrafficAllowed = 1;
+  string ExpireAt = 2;
+  int64 PackageDays = 3;
+  string Mode = 4;
 }
 
 message Response {

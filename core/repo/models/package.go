@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,13 +23,14 @@ import (
 
 // Package is an object representing the database table.
 type Package struct {
-	ID             int64     `boil:"id" json:"id" toml:"id" yaml:"id"`
-	Name           string    `boil:"name" json:"name" toml:"name" yaml:"name"`
-	Duration       int64     `boil:"duration" json:"duration" toml:"duration" yaml:"duration"`
-	Price          int64     `boil:"price" json:"price" toml:"price" yaml:"price"`
-	TrafficAllowed float32   `boil:"traffic_allowed" json:"traffic_allowed" toml:"traffic_allowed" yaml:"traffic_allowed"`
-	ResetMode      string    `boil:"reset_mode" json:"reset_mode" toml:"reset_mode" yaml:"reset_mode"`
-	Active         null.Bool `boil:"active" json:"active,omitempty" toml:"active" yaml:"active,omitempty"`
+	ID             int64   `boil:"id" json:"id" toml:"id" yaml:"id"`
+	Name           string  `boil:"name" json:"name" toml:"name" yaml:"name"`
+	Duration       int64   `boil:"duration" json:"duration" toml:"duration" yaml:"duration"`
+	Price          int64   `boil:"price" json:"price" toml:"price" yaml:"price"`
+	TrafficAllowed float32 `boil:"traffic_allowed" json:"traffic_allowed" toml:"traffic_allowed" yaml:"traffic_allowed"`
+	ResetMode      string  `boil:"reset_mode" json:"reset_mode" toml:"reset_mode" yaml:"reset_mode"`
+	Active         bool    `boil:"active" json:"active" toml:"active" yaml:"active"`
+	Description    string  `boil:"description" json:"description" toml:"description" yaml:"description"`
 
 	R *packageR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L packageL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -44,6 +44,7 @@ var PackageColumns = struct {
 	TrafficAllowed string
 	ResetMode      string
 	Active         string
+	Description    string
 }{
 	ID:             "id",
 	Name:           "name",
@@ -52,6 +53,7 @@ var PackageColumns = struct {
 	TrafficAllowed: "traffic_allowed",
 	ResetMode:      "reset_mode",
 	Active:         "active",
+	Description:    "description",
 }
 
 var PackageTableColumns = struct {
@@ -62,6 +64,7 @@ var PackageTableColumns = struct {
 	TrafficAllowed string
 	ResetMode      string
 	Active         string
+	Description    string
 }{
 	ID:             "package.id",
 	Name:           "package.name",
@@ -70,32 +73,10 @@ var PackageTableColumns = struct {
 	TrafficAllowed: "package.traffic_allowed",
 	ResetMode:      "package.reset_mode",
 	Active:         "package.active",
+	Description:    "package.description",
 }
 
 // Generated where
-
-type whereHelperstring struct{ field string }
-
-func (w whereHelperstring) EQ(x string) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
-func (w whereHelperstring) NEQ(x string) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
-func (w whereHelperstring) LT(x string) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
-func (w whereHelperstring) LTE(x string) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
-func (w whereHelperstring) GT(x string) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
-func (w whereHelperstring) GTE(x string) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
-func (w whereHelperstring) IN(slice []string) qm.QueryMod {
-	values := make([]interface{}, 0, len(slice))
-	for _, value := range slice {
-		values = append(values, value)
-	}
-	return qm.WhereIn(fmt.Sprintf("%s IN ?", w.field), values...)
-}
-func (w whereHelperstring) NIN(slice []string) qm.QueryMod {
-	values := make([]interface{}, 0, len(slice))
-	for _, value := range slice {
-		values = append(values, value)
-	}
-	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
-}
 
 type whereHelperfloat32 struct{ field string }
 
@@ -126,29 +107,14 @@ func (w whereHelperfloat32) NIN(slice []float32) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
-type whereHelpernull_Bool struct{ field string }
+type whereHelperbool struct{ field string }
 
-func (w whereHelpernull_Bool) EQ(x null.Bool) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, false, x)
-}
-func (w whereHelpernull_Bool) NEQ(x null.Bool) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, true, x)
-}
-func (w whereHelpernull_Bool) LT(x null.Bool) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LT, x)
-}
-func (w whereHelpernull_Bool) LTE(x null.Bool) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LTE, x)
-}
-func (w whereHelpernull_Bool) GT(x null.Bool) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GT, x)
-}
-func (w whereHelpernull_Bool) GTE(x null.Bool) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GTE, x)
-}
-
-func (w whereHelpernull_Bool) IsNull() qm.QueryMod    { return qmhelper.WhereIsNull(w.field) }
-func (w whereHelpernull_Bool) IsNotNull() qm.QueryMod { return qmhelper.WhereIsNotNull(w.field) }
+func (w whereHelperbool) EQ(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
+func (w whereHelperbool) NEQ(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
+func (w whereHelperbool) LT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
+func (w whereHelperbool) LTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
+func (w whereHelperbool) GT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
+func (w whereHelperbool) GTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
 
 var PackageWhere = struct {
 	ID             whereHelperint64
@@ -157,7 +123,8 @@ var PackageWhere = struct {
 	Price          whereHelperint64
 	TrafficAllowed whereHelperfloat32
 	ResetMode      whereHelperstring
-	Active         whereHelpernull_Bool
+	Active         whereHelperbool
+	Description    whereHelperstring
 }{
 	ID:             whereHelperint64{field: "\"package\".\"id\""},
 	Name:           whereHelperstring{field: "\"package\".\"name\""},
@@ -165,24 +132,35 @@ var PackageWhere = struct {
 	Price:          whereHelperint64{field: "\"package\".\"price\""},
 	TrafficAllowed: whereHelperfloat32{field: "\"package\".\"traffic_allowed\""},
 	ResetMode:      whereHelperstring{field: "\"package\".\"reset_mode\""},
-	Active:         whereHelpernull_Bool{field: "\"package\".\"active\""},
+	Active:         whereHelperbool{field: "\"package\".\"active\""},
+	Description:    whereHelperstring{field: "\"package\".\"description\""},
 }
 
 // PackageRels is where relationship names are stored.
 var PackageRels = struct {
-	Tusers string
+	Purchases string
+	Tusers    string
 }{
-	Tusers: "Tusers",
+	Purchases: "Purchases",
+	Tusers:    "Tusers",
 }
 
 // packageR is where relationships are stored.
 type packageR struct {
-	Tusers TuserSlice `boil:"Tusers" json:"Tusers" toml:"Tusers" yaml:"Tusers"`
+	Purchases PurchaseSlice `boil:"Purchases" json:"Purchases" toml:"Purchases" yaml:"Purchases"`
+	Tusers    TuserSlice    `boil:"Tusers" json:"Tusers" toml:"Tusers" yaml:"Tusers"`
 }
 
 // NewStruct creates a new relationship struct
 func (*packageR) NewStruct() *packageR {
 	return &packageR{}
+}
+
+func (r *packageR) GetPurchases() PurchaseSlice {
+	if r == nil {
+		return nil
+	}
+	return r.Purchases
 }
 
 func (r *packageR) GetTusers() TuserSlice {
@@ -196,9 +174,9 @@ func (r *packageR) GetTusers() TuserSlice {
 type packageL struct{}
 
 var (
-	packageAllColumns            = []string{"id", "name", "duration", "price", "traffic_allowed", "reset_mode", "active"}
+	packageAllColumns            = []string{"id", "name", "duration", "price", "traffic_allowed", "reset_mode", "active", "description"}
 	packageColumnsWithoutDefault = []string{"name", "duration", "price", "reset_mode"}
-	packageColumnsWithDefault    = []string{"id", "traffic_allowed", "active"}
+	packageColumnsWithDefault    = []string{"id", "traffic_allowed", "active", "description"}
 	packagePrimaryKeyColumns     = []string{"id"}
 	packageGeneratedColumns      = []string{"id"}
 )
@@ -481,6 +459,20 @@ func (q packageQuery) Exists(ctx context.Context, exec boil.ContextExecutor) (bo
 	return count > 0, nil
 }
 
+// Purchases retrieves all the purchase's Purchases with an executor.
+func (o *Package) Purchases(mods ...qm.QueryMod) purchaseQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.Where("\"purchase\".\"package_id\"=?", o.ID),
+	)
+
+	return Purchases(queryMods...)
+}
+
 // Tusers retrieves all the tuser's Tusers with an executor.
 func (o *Package) Tusers(mods ...qm.QueryMod) tuserQuery {
 	var queryMods []qm.QueryMod
@@ -493,6 +485,120 @@ func (o *Package) Tusers(mods ...qm.QueryMod) tuserQuery {
 	)
 
 	return Tusers(queryMods...)
+}
+
+// LoadPurchases allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (packageL) LoadPurchases(ctx context.Context, e boil.ContextExecutor, singular bool, maybePackage interface{}, mods queries.Applicator) error {
+	var slice []*Package
+	var object *Package
+
+	if singular {
+		var ok bool
+		object, ok = maybePackage.(*Package)
+		if !ok {
+			object = new(Package)
+			ok = queries.SetFromEmbeddedStruct(&object, &maybePackage)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", object, maybePackage))
+			}
+		}
+	} else {
+		s, ok := maybePackage.(*[]*Package)
+		if ok {
+			slice = *s
+		} else {
+			ok = queries.SetFromEmbeddedStruct(&slice, maybePackage)
+			if !ok {
+				return errors.New(fmt.Sprintf("failed to set %T from embedded struct %T", slice, maybePackage))
+			}
+		}
+	}
+
+	args := make([]interface{}, 0, 1)
+	if singular {
+		if object.R == nil {
+			object.R = &packageR{}
+		}
+		args = append(args, object.ID)
+	} else {
+	Outer:
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &packageR{}
+			}
+
+			for _, a := range args {
+				if a == obj.ID {
+					continue Outer
+				}
+			}
+
+			args = append(args, obj.ID)
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	query := NewQuery(
+		qm.From(`purchase`),
+		qm.WhereIn(`purchase.package_id in ?`, args...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.QueryContext(ctx, e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load purchase")
+	}
+
+	var resultSlice []*Purchase
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice purchase")
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on purchase")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for purchase")
+	}
+
+	if len(purchaseAfterSelectHooks) != 0 {
+		for _, obj := range resultSlice {
+			if err := obj.doAfterSelectHooks(ctx, e); err != nil {
+				return err
+			}
+		}
+	}
+	if singular {
+		object.R.Purchases = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &purchaseR{}
+			}
+			foreign.R.Package = object
+		}
+		return nil
+	}
+
+	for _, foreign := range resultSlice {
+		for _, local := range slice {
+			if local.ID == foreign.PackageID {
+				local.R.Purchases = append(local.R.Purchases, foreign)
+				if foreign.R == nil {
+					foreign.R = &purchaseR{}
+				}
+				foreign.R.Package = local
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // LoadTusers allows an eager lookup of values, cached into the
@@ -606,6 +712,59 @@ func (packageL) LoadTusers(ctx context.Context, e boil.ContextExecutor, singular
 		}
 	}
 
+	return nil
+}
+
+// AddPurchases adds the given related objects to the existing relationships
+// of the package, optionally inserting them as new records.
+// Appends related to o.R.Purchases.
+// Sets related.R.Package appropriately.
+func (o *Package) AddPurchases(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*Purchase) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			rel.PackageID = o.ID
+			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		} else {
+			updateQuery := fmt.Sprintf(
+				"UPDATE \"purchase\" SET %s WHERE %s",
+				strmangle.SetParamNames("\"", "\"", 0, []string{"package_id"}),
+				strmangle.WhereClause("\"", "\"", 0, purchasePrimaryKeyColumns),
+			)
+			values := []interface{}{o.ID, rel.ID}
+
+			if boil.IsDebug(ctx) {
+				writer := boil.DebugWriterFrom(ctx)
+				fmt.Fprintln(writer, updateQuery)
+				fmt.Fprintln(writer, values)
+			}
+			if _, err = exec.ExecContext(ctx, updateQuery, values...); err != nil {
+				return errors.Wrap(err, "failed to update foreign table")
+			}
+
+			rel.PackageID = o.ID
+		}
+	}
+
+	if o.R == nil {
+		o.R = &packageR{
+			Purchases: related,
+		}
+	} else {
+		o.R.Purchases = append(o.R.Purchases, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &purchaseR{
+				Package: o,
+			}
+		} else {
+			rel.R.Package = o
+		}
+	}
 	return nil
 }
 

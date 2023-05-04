@@ -4,11 +4,16 @@ import (
 	"crypto/md5"
 	"fmt"
 	"github.com/amin1024/xtelbot/conf"
+	"github.com/amin1024/xtelbot/core/e"
 	"github.com/amin1024/xtelbot/core/repo"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/pb"
+	"github.com/friendsofgo/errors"
 	"github.com/google/uuid"
+	"github.com/volatiletech/null/v8"
 	"go.uber.org/zap"
+	"math/rand"
+	"strconv"
 	"time"
 )
 
@@ -58,13 +63,15 @@ func (u *UserService) Register(tid uint64, username string, packageName string) 
 		return err
 	}
 	cmd := pb.AddUserCmd{
-		Tid:            user.Tid,
-		TUsername:      user.Username,
-		Uuid:           user.UUID,
-		TrafficAllowed: p.TrafficAllowed,
-		ExpireAt:       user.ExpireAt,
-		PackageDays:    p.Duration,
-		Mode:           p.ResetMode,
+		Tid:       user.Tid,
+		TUsername: user.Username,
+		Uuid:      user.UUID,
+		Package: &pb.Package{
+			TrafficAllowed: p.TrafficAllowed,
+			ExpireAt:       user.ExpireAt,
+			PackageDays:    p.Duration,
+			Mode:           p.ResetMode,
+		},
 	}
 	// Add this telegram user to any alive xNode (aka panels)
 	n, err := u.nodesService.AddUser(&cmd)
@@ -83,12 +90,30 @@ func (u *UserService) Unregister(uid uint64) error {
 	return nil
 }
 
-func (u *UserService) Upgrade(uint642 uint64) error {
+func (u *UserService) ListAvailablePackages() ([]*models.Package, error) {
+	packages, err := repo.GetAllPackages()
+	if err != nil {
+		u.log.Fatalw("[db] unable to list packages", "detail", err)
+	}
+	return packages, err
+}
+
+// Upgrade the user to a new package then send a command to all the available servers
+func (u *UserService) Upgrade(user *models.Tuser, pck *models.Package) error {
+	user.PackageID = pck.ID
+	if err := repo.UpdateUser(user); err != nil {
+		return err
+	}
+	if err := u.nodesService.UpgradeUserPackage(user.UUID, pck); err != nil {
+		// TODO: We want to keep track of failed servers so that we retry again later
+		return e.PackageUpgradeFailedByXNodes
+	}
+	u.log.Infow("Successfully upgraded user", "userTid", user.Tid, "username", user.Username, "packageId", pck.ID)
 	return nil
 }
 
 func (u *UserService) Status(uid uint64) (*models.Tuser, error) {
-	user, err := repo.GetUser(uid)
+	user, err := repo.GetUserByTid(uid)
 	if err != nil {
 		return nil, err
 	}
@@ -136,4 +161,88 @@ func (u *UserService) SpawnRunners() {
 			go u.TrafficUsageRunner()
 		}
 	}
+}
+
+func (u *UserService) CreatePurchase(user *models.Tuser, pck *models.Package, msgId int) error {
+	p := &models.Purchase{
+		TuserID:     user.ID,
+		PackageID:   pck.ID,
+		Price:       pck.Price,
+		PackageName: pck.Name,
+		Status:      int64(repo.PurchaseUnknown),
+		MSGID:       int64(msgId),
+	}
+	if err := repo.InsertPurchase(p); err != nil {
+		return fmt.Errorf("[db]: %w", e.BaseError)
+	}
+	return nil
+}
+
+// ProcessPurchaseOnReceipt process a purchase when the user paid the price and sent a receipt to the admins
+func (u *UserService) ProcessPurchaseOnReceipt(user *models.Tuser) (repo.PurchaseNotify, error) {
+	var pn repo.PurchaseNotify
+	purchase, err := repo.LastPurchasesByUserId(user.ID, repo.PurchaseUnknown)
+	if errors.Is(err, e.PurchaseNotFound) {
+		return pn, e.ReceiptPhotoWithoutActualPurchase
+	}
+	if err != nil {
+		u.log.Errorw("[db] failed to get latest purchase", "userId", user.ID, "detail", err)
+		return pn, errors.Wrap(err, e.BaseError.Error())
+	}
+
+	pn.Purchase = purchase
+	pn.Tuser = user
+
+	// Disable older purchases and set the current purchase as IsProcessing.
+	// The goal is to be assured that every user has only 1 active purchase on his/her basket
+	if err := repo.SetPurchaseAsProcessing(purchase); err != nil {
+		return pn, err
+	}
+	return pn, nil
+}
+
+func (u *UserService) ConfirmPurchase(purchaseId string) error {
+	return u.processPurchase(purchaseId, repo.PurchaseConfirmed)
+}
+
+func (u *UserService) RejectPurchase(purchaseId string) error {
+	return u.processPurchase(purchaseId, repo.PurchaseRejected)
+}
+
+// processPurchase process a purchase when admin acts upon it
+func (u *UserService) processPurchase(purchaseId string, newStatus repo.PurchaseStatus) error {
+	pid, err := strconv.ParseInt(purchaseId, 10, 64)
+	if err != nil {
+		return e.InvalidPurchaseIdFormat
+	}
+	purchase, err := repo.GetPurchaseById(pid)
+	if err != nil {
+		return e.PurchaseNotFound
+	}
+
+	if newStatus == repo.PurchaseConfirmed {
+		// admin confirmed the purchase, lets upgrade the user package
+		if err := u.Upgrade(purchase.R.Tuser, purchase.R.Package); err != nil {
+			return err
+		}
+	}
+
+	purchase.ProcessedAt = null.TimeFrom(time.Now())
+	purchase.Status = int64(newStatus)
+	if err := repo.UpdatePurchase(purchase); err != nil {
+		u.log.Errorw("cannot update purchase's status", "detail", err)
+		return err
+	}
+
+	return nil
+}
+
+func (u *UserService) GetRandomBankCard() (string, error) {
+	// Warning: users will be able to extract all the available bank cards!
+	values, err := repo.GetKeyVal("bank_card")
+	if err != nil || len(values) == 0 {
+		return "", e.BankCardNotFound
+	}
+	rand.Seed(time.Now().Unix())
+	return values[rand.Intn(len(values))].Value, nil
 }

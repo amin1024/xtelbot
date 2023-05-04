@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// implements pb.XNodeGrpcClient
 type mockedClient struct {
 	mock.Mock
 }
@@ -31,6 +32,10 @@ func (m *mockedClient) GetSub(ctx context.Context, in *pb.UserInfoReq, opts ...g
 func (m *mockedClient) GetUserInfo(ctx context.Context, in *pb.UserInfoReq, opts ...grpc.CallOption) (*pb.UserInfo, error) {
 	//args := m.Called(mock.Anything, mock.Anything, mock.Anything)
 	return &pb.UserInfo{CurrentUsage: 100}, nil
+}
+
+func (m *mockedClient) UpgradeUserPackage(ctx context.Context, in *pb.AddPackageCmd, opts ...grpc.CallOption) (*pb.Response, error) {
+	return &pb.Response{}, nil
 }
 
 //

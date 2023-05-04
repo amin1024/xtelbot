@@ -26,6 +26,7 @@ type XNodeGrpcClient interface {
 	Ping(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Empty, error)
 	GetSub(ctx context.Context, in *UserInfoReq, opts ...grpc.CallOption) (*SubContent, error)
 	GetUserInfo(ctx context.Context, in *UserInfoReq, opts ...grpc.CallOption) (*UserInfo, error)
+	UpgradeUserPackage(ctx context.Context, in *AddPackageCmd, opts ...grpc.CallOption) (*Response, error)
 }
 
 type xNodeGrpcClient struct {
@@ -72,6 +73,15 @@ func (c *xNodeGrpcClient) GetUserInfo(ctx context.Context, in *UserInfoReq, opts
 	return out, nil
 }
 
+func (c *xNodeGrpcClient) UpgradeUserPackage(ctx context.Context, in *AddPackageCmd, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
+	err := c.cc.Invoke(ctx, "/pb.XNodeGrpc/UpgradeUserPackage", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // XNodeGrpcServer is the server API for XNodeGrpc service.
 // All implementations must embed UnimplementedXNodeGrpcServer
 // for forward compatibility
@@ -80,6 +90,7 @@ type XNodeGrpcServer interface {
 	Ping(context.Context, *Empty) (*Empty, error)
 	GetSub(context.Context, *UserInfoReq) (*SubContent, error)
 	GetUserInfo(context.Context, *UserInfoReq) (*UserInfo, error)
+	UpgradeUserPackage(context.Context, *AddPackageCmd) (*Response, error)
 	mustEmbedUnimplementedXNodeGrpcServer()
 }
 
@@ -98,6 +109,9 @@ func (UnimplementedXNodeGrpcServer) GetSub(context.Context, *UserInfoReq) (*SubC
 }
 func (UnimplementedXNodeGrpcServer) GetUserInfo(context.Context, *UserInfoReq) (*UserInfo, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserInfo not implemented")
+}
+func (UnimplementedXNodeGrpcServer) UpgradeUserPackage(context.Context, *AddPackageCmd) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpgradeUserPackage not implemented")
 }
 func (UnimplementedXNodeGrpcServer) mustEmbedUnimplementedXNodeGrpcServer() {}
 
@@ -184,6 +198,24 @@ func _XNodeGrpc_GetUserInfo_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _XNodeGrpc_UpgradeUserPackage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddPackageCmd)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XNodeGrpcServer).UpgradeUserPackage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.XNodeGrpc/UpgradeUserPackage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XNodeGrpcServer).UpgradeUserPackage(ctx, req.(*AddPackageCmd))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // XNodeGrpc_ServiceDesc is the grpc.ServiceDesc for XNodeGrpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -206,6 +238,10 @@ var XNodeGrpc_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUserInfo",
 			Handler:    _XNodeGrpc_GetUserInfo_Handler,
+		},
+		{
+			MethodName: "UpgradeUserPackage",
+			Handler:    _XNodeGrpc_UpgradeUserPackage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
