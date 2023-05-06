@@ -17,14 +17,16 @@ import (
 	"time"
 )
 
-func NewUserService() *UserService {
+func NewUserService(terminal PaymentTerminal) *UserService {
+	log := conf.NewLogger()
 	repo.SetupDb("db.db")
 	repo.AutoMigrate()
 	repo.SetupPackage()
 	s := newNodesService()
 	userService := &UserService{
-		log:          conf.NewLogger(),
-		nodesService: s,
+		log:             log,
+		nodesService:    s,
+		paymentTerminal: terminal,
 	}
 
 	return userService
@@ -37,6 +39,8 @@ type UserService struct {
 
 	log          *zap.SugaredLogger
 	nodesService *nodesService
+
+	paymentTerminal PaymentTerminal
 }
 
 func (u *UserService) SubscribeNotification(ch chan<- Notification) {
@@ -169,24 +173,90 @@ func (u *UserService) SpawnRunners() {
 	}
 }
 
-func (u *UserService) CreatePurchase(user *models.Tuser, pck *models.Package, msgId int) error {
+//func (u *UserService) CreatePurchase(user *models.Tuser, pck *models.Package, msgId int) error {
+//	p := &models.Purchase{
+//		TuserID:     user.ID,
+//		PackageID:   pck.ID,
+//		Price:       pck.Price,
+//		PackageName: pck.Name,
+//		Status:      int64(repo.PurchaseUnknown),
+//	}
+//	if err := repo.InsertPurchase(p); err != nil {
+//		return fmt.Errorf("[db]: %w", e.BaseError)
+//	}
+//	return nil
+//}
+
+// CreateBankTransaction communicate with bank-terminal to get a new transaction and returns transaction id
+func (u *UserService) CreateBankTransaction(user *models.Tuser, pck *models.Package) (string, error) {
 	p := &models.Purchase{
 		TuserID:     user.ID,
 		PackageID:   pck.ID,
 		Price:       pck.Price,
 		PackageName: pck.Name,
-		Status:      int64(repo.PurchaseUnknown),
-		MSGID:       int64(msgId),
+		Status:      int64(repo.PurchaseWaitingForBankCallback),
 	}
-	if err := repo.InsertPurchase(p); err != nil {
-		return fmt.Errorf("[db]: %w", e.BaseError)
+	// Create a new purchase/order and also disable previous ones
+	if err := repo.CreatePurchase(p); err != nil {
+		return "", fmt.Errorf("[db]: %w", e.BaseError)
 	}
-	return nil
+	transId, err := u.paymentTerminal.CreateToken(p.Price, p.ID)
+	if err != nil {
+		// notify admins: bank problem
+		return "", err
+	}
+	// update order, add transaction id
+	p.TransactionID = null.StringFrom(transId)
+	if err := repo.UpdatePurchase(p); err != nil {
+		return "", err
+	}
+	return u.paymentTerminal.CreateRedirectUrl(transId), nil
+}
+
+func (u *UserService) VerifyBankTransaction(parameters CallbackParameters) (*models.Purchase, error) {
+	p, err := repo.GetPurchaseById(parameters.OrderId)
+	if parameters.Amount <= 0 || err != nil {
+		return p, e.PurchaseNotFound
+	}
+	vr, err := u.paymentTerminal.VerifyOrder(parameters)
+	if err != nil {
+		u.log.Warnw("order verification failed", "code", vr.Code, "order_id", p.ID, "user", p.R.Tuser.Username, "detail", err)
+		return p, err
+	}
+	if vr.Code != 0 {
+		return p, e.OrderNotVerified
+	}
+
+	remoteOrderId, _ := strconv.ParseInt(vr.OrderId, 10, 64)
+	if p.ID != remoteOrderId || p.Price != vr.Amount {
+		u.log.Errorw("[unreachable code] invalid purchase received from bank!", "db:purchaseId", p.ID, "remote purchase", vr)
+	}
+	// confirm on db
+	p.ShaparakRef = null.StringFrom(vr.ShaparakRef)
+	p.Status = int64(repo.PurchaseConfirmed)
+	if err := repo.UpdatePurchase(p); err != nil {
+		u.log.Errorw("[db] cannot update purchase table", "detail", err)
+		return p, e.FatalErr
+	}
+
+	// upgrade user on every xPanel
+	if err := u.Upgrade(p.R.Tuser, p.R.Package); err != nil {
+		u.log.Errorw("[silent] failed to upgrade user package", "detail", err)
+	}
+
+	// Notify user on successful purchase
+	n := Notification{
+		Type:  PurchaseSuccessful,
+		User:  p.R.Tuser,
+		Extra: p,
+	}
+	u.notifyUser(n)
+	return p, nil
 }
 
 // ProcessPurchaseOnReceipt process a purchase when the user paid the price and sent a receipt to the admins
-func (u *UserService) ProcessPurchaseOnReceipt(user *models.Tuser) (repo.PurchaseNotify, error) {
-	var pn repo.PurchaseNotify
+func (u *UserService) ProcessPurchaseOnReceipt(user *models.Tuser) (AdminPurchaseNotify, error) {
+	var pn AdminPurchaseNotify
 	purchase, err := repo.LastPurchasesByUserId(user.ID, repo.PurchaseUnknown)
 	if errors.Is(err, e.PurchaseNotFound) {
 		return pn, e.ReceiptPhotoWithoutActualPurchase
@@ -252,11 +322,7 @@ func (u *UserService) processPurchase(purchaseId string, newStatus repo.Purchase
 	} else if newStatus == repo.PurchaseRejected {
 		n.Type = PurchaseRejected
 	}
-	go func(n Notification) {
-		for _, ch := range u.notificationChannels {
-			ch <- n
-		}
-	}(n)
+	u.notifyUser(n)
 	return nil
 }
 
@@ -268,4 +334,12 @@ func (u *UserService) GetRandomBankCard() (string, error) {
 	}
 	rand.Seed(time.Now().Unix())
 	return values[rand.Intn(len(values))].Value, nil
+}
+
+func (u *UserService) notifyUser(n Notification) {
+	go func(n Notification) {
+		for _, ch := range u.notificationChannels {
+			ch <- n
+		}
+	}(n)
 }

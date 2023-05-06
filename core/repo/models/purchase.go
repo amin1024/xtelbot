@@ -24,62 +24,67 @@ import (
 
 // Purchase is an object representing the database table.
 type Purchase struct {
-	ID          int64     `boil:"id" json:"id" toml:"id" yaml:"id"`
-	TuserID     int64     `boil:"tuser_id" json:"tuser_id" toml:"tuser_id" yaml:"tuser_id"`
-	PackageID   int64     `boil:"package_id" json:"package_id" toml:"package_id" yaml:"package_id"`
-	Price       int64     `boil:"price" json:"price" toml:"price" yaml:"price"`
-	PackageName string    `boil:"package_name" json:"package_name" toml:"package_name" yaml:"package_name"`
-	Status      int64     `boil:"status" json:"status" toml:"status" yaml:"status"`
-	ProcessedAt null.Time `boil:"processed_at" json:"processed_at,omitempty" toml:"processed_at" yaml:"processed_at,omitempty"`
-	MSGID       int64     `boil:"msg_id" json:"msg_id" toml:"msg_id" yaml:"msg_id"`
-	CreatedAt   time.Time `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	ID            int64       `boil:"id" json:"id" toml:"id" yaml:"id"`
+	TuserID       int64       `boil:"tuser_id" json:"tuser_id" toml:"tuser_id" yaml:"tuser_id"`
+	PackageID     int64       `boil:"package_id" json:"package_id" toml:"package_id" yaml:"package_id"`
+	Price         int64       `boil:"price" json:"price" toml:"price" yaml:"price"`
+	PackageName   string      `boil:"package_name" json:"package_name" toml:"package_name" yaml:"package_name"`
+	Status        int64       `boil:"status" json:"status" toml:"status" yaml:"status"`
+	ProcessedAt   null.Time   `boil:"processed_at" json:"processed_at,omitempty" toml:"processed_at" yaml:"processed_at,omitempty"`
+	CreatedAt     time.Time   `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	TransactionID null.String `boil:"transaction_id" json:"transaction_id,omitempty" toml:"transaction_id" yaml:"transaction_id,omitempty"`
+	ShaparakRef   null.String `boil:"shaparak_ref" json:"shaparak_ref,omitempty" toml:"shaparak_ref" yaml:"shaparak_ref,omitempty"`
 
 	R *purchaseR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L purchaseL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
 var PurchaseColumns = struct {
-	ID          string
-	TuserID     string
-	PackageID   string
-	Price       string
-	PackageName string
-	Status      string
-	ProcessedAt string
-	MSGID       string
-	CreatedAt   string
+	ID            string
+	TuserID       string
+	PackageID     string
+	Price         string
+	PackageName   string
+	Status        string
+	ProcessedAt   string
+	CreatedAt     string
+	TransactionID string
+	ShaparakRef   string
 }{
-	ID:          "id",
-	TuserID:     "tuser_id",
-	PackageID:   "package_id",
-	Price:       "price",
-	PackageName: "package_name",
-	Status:      "status",
-	ProcessedAt: "processed_at",
-	MSGID:       "msg_id",
-	CreatedAt:   "created_at",
+	ID:            "id",
+	TuserID:       "tuser_id",
+	PackageID:     "package_id",
+	Price:         "price",
+	PackageName:   "package_name",
+	Status:        "status",
+	ProcessedAt:   "processed_at",
+	CreatedAt:     "created_at",
+	TransactionID: "transaction_id",
+	ShaparakRef:   "shaparak_ref",
 }
 
 var PurchaseTableColumns = struct {
-	ID          string
-	TuserID     string
-	PackageID   string
-	Price       string
-	PackageName string
-	Status      string
-	ProcessedAt string
-	MSGID       string
-	CreatedAt   string
+	ID            string
+	TuserID       string
+	PackageID     string
+	Price         string
+	PackageName   string
+	Status        string
+	ProcessedAt   string
+	CreatedAt     string
+	TransactionID string
+	ShaparakRef   string
 }{
-	ID:          "purchase.id",
-	TuserID:     "purchase.tuser_id",
-	PackageID:   "purchase.package_id",
-	Price:       "purchase.price",
-	PackageName: "purchase.package_name",
-	Status:      "purchase.status",
-	ProcessedAt: "purchase.processed_at",
-	MSGID:       "purchase.msg_id",
-	CreatedAt:   "purchase.created_at",
+	ID:            "purchase.id",
+	TuserID:       "purchase.tuser_id",
+	PackageID:     "purchase.package_id",
+	Price:         "purchase.price",
+	PackageName:   "purchase.package_name",
+	Status:        "purchase.status",
+	ProcessedAt:   "purchase.processed_at",
+	CreatedAt:     "purchase.created_at",
+	TransactionID: "purchase.transaction_id",
+	ShaparakRef:   "purchase.shaparak_ref",
 }
 
 // Generated where
@@ -130,25 +135,27 @@ func (w whereHelpertime_Time) GTE(x time.Time) qm.QueryMod {
 }
 
 var PurchaseWhere = struct {
-	ID          whereHelperint64
-	TuserID     whereHelperint64
-	PackageID   whereHelperint64
-	Price       whereHelperint64
-	PackageName whereHelperstring
-	Status      whereHelperint64
-	ProcessedAt whereHelpernull_Time
-	MSGID       whereHelperint64
-	CreatedAt   whereHelpertime_Time
+	ID            whereHelperint64
+	TuserID       whereHelperint64
+	PackageID     whereHelperint64
+	Price         whereHelperint64
+	PackageName   whereHelperstring
+	Status        whereHelperint64
+	ProcessedAt   whereHelpernull_Time
+	CreatedAt     whereHelpertime_Time
+	TransactionID whereHelpernull_String
+	ShaparakRef   whereHelpernull_String
 }{
-	ID:          whereHelperint64{field: "\"purchase\".\"id\""},
-	TuserID:     whereHelperint64{field: "\"purchase\".\"tuser_id\""},
-	PackageID:   whereHelperint64{field: "\"purchase\".\"package_id\""},
-	Price:       whereHelperint64{field: "\"purchase\".\"price\""},
-	PackageName: whereHelperstring{field: "\"purchase\".\"package_name\""},
-	Status:      whereHelperint64{field: "\"purchase\".\"status\""},
-	ProcessedAt: whereHelpernull_Time{field: "\"purchase\".\"processed_at\""},
-	MSGID:       whereHelperint64{field: "\"purchase\".\"msg_id\""},
-	CreatedAt:   whereHelpertime_Time{field: "\"purchase\".\"created_at\""},
+	ID:            whereHelperint64{field: "\"purchase\".\"id\""},
+	TuserID:       whereHelperint64{field: "\"purchase\".\"tuser_id\""},
+	PackageID:     whereHelperint64{field: "\"purchase\".\"package_id\""},
+	Price:         whereHelperint64{field: "\"purchase\".\"price\""},
+	PackageName:   whereHelperstring{field: "\"purchase\".\"package_name\""},
+	Status:        whereHelperint64{field: "\"purchase\".\"status\""},
+	ProcessedAt:   whereHelpernull_Time{field: "\"purchase\".\"processed_at\""},
+	CreatedAt:     whereHelpertime_Time{field: "\"purchase\".\"created_at\""},
+	TransactionID: whereHelpernull_String{field: "\"purchase\".\"transaction_id\""},
+	ShaparakRef:   whereHelpernull_String{field: "\"purchase\".\"shaparak_ref\""},
 }
 
 // PurchaseRels is where relationship names are stored.
@@ -189,9 +196,9 @@ func (r *purchaseR) GetTuser() *Tuser {
 type purchaseL struct{}
 
 var (
-	purchaseAllColumns            = []string{"id", "tuser_id", "package_id", "price", "package_name", "status", "processed_at", "msg_id", "created_at"}
-	purchaseColumnsWithoutDefault = []string{"tuser_id", "package_id", "price", "package_name", "status", "msg_id", "created_at"}
-	purchaseColumnsWithDefault    = []string{"id", "processed_at"}
+	purchaseAllColumns            = []string{"id", "tuser_id", "package_id", "price", "package_name", "status", "processed_at", "created_at", "transaction_id", "shaparak_ref"}
+	purchaseColumnsWithoutDefault = []string{"tuser_id", "package_id", "price", "package_name", "status", "created_at"}
+	purchaseColumnsWithDefault    = []string{"id", "processed_at", "transaction_id", "shaparak_ref"}
 	purchasePrimaryKeyColumns     = []string{"id"}
 	purchaseGeneratedColumns      = []string{"id"}
 )

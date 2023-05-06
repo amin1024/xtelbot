@@ -18,12 +18,11 @@ import (
 	"time"
 )
 
-const packagePrefix = "package-"
 const packageImgCloudId = "package_img_cloud_id"
 
 // -----------------------------------------------------------------
 
-func NewBotHandler(domainAddr string) *BotHandler {
+func NewBotHandler(userService *core.UserService, domainAddr string) *BotHandler {
 	log := conf.NewLogger()
 	log.Info("Creating new bot")
 	token := os.Getenv("BOT_TOKEN")
@@ -43,7 +42,6 @@ func NewBotHandler(domainAddr string) *BotHandler {
 		return nil
 	}
 
-	userService := core.NewUserService()
 	notifyMe := make(chan core.Notification)
 	userService.SubscribeNotification(notifyMe)
 
@@ -53,6 +51,7 @@ func NewBotHandler(domainAddr string) *BotHandler {
 		domainAddr:  domainAddr,
 		log:         log,
 
+		orderCache:        make(map[int64]string),
 		userNotifyChannel: notifyMe,
 	}
 	// The bot needs at least 1 bank_card to handle purchases
@@ -62,7 +61,7 @@ func NewBotHandler(domainAddr string) *BotHandler {
 
 	records, err := repo.GetKeyVal(packageImgCloudId)
 	if err == nil && len(records) >= 1 {
-		r := records[0]
+		r := records[len(records)-1]
 		h.packageImageFile = tele.File{
 			FileID: r.Value,
 		}
@@ -87,60 +86,37 @@ func NewBotHandler(domainAddr string) *BotHandler {
 		return func(c tele.Context) error {
 			user := c.Get("userObj").(*models.Tuser)
 			if !user.Active {
-				return c.Send(msgUserNotActive)
+				return fmt.Errorf(msgUserNotActive)
 			}
 			return next(c)
 		}
 	}
 
-	var purchaseMenu = &tele.ReplyMarkup{}
-	// Create a map of "btn unique name" -> "package model"
-	availablePackages := make(map[string]*models.Package)
-	var btns []tele.Btn
 	packages, _ := userService.ListAvailablePackages()
-	for _, p := range packages {
-		if p.Price == 0 { // We don't want to show free packages to users
-			continue
-		}
-		uniqueName := packagePrefix + strconv.FormatInt(p.ID, 10)
-		availablePackages[uniqueName] = p
-		btns = append(btns, purchaseMenu.Data(p.Name, uniqueName))
-	}
-	rows := make([]tele.Row, 2+len(btns)/3)
-	for i, btn := range btns {
-		i /= 3
-		rows[i] = append(rows[i], btn)
-	}
-	purchaseMenu.Inline(rows...)
-	h.packages = availablePackages
-	h.purchaseMenu = purchaseMenu
-
+	// Build main menu step by step
+	// 1- Build purchase menu
+	h.buildPurchaseMenu(packages, validateUserMiddleware)
+	h.buildPurchaseMethodMenu(validateUserMiddleware)
+	// 2- Build traffic usage menu
+	h.buildUsageMenu(backButton)
+	// 3- Build sub menu
+	h.buildSubMenu(backButton)
+	h.buildHelpMenu(backButton)
 	// define a menu to handle purchase confirmation coming from admins
-	var purchaseConfirmMenu = &tele.ReplyMarkup{}
-	approve := purchaseConfirmMenu.Data("Approve", "approve-purchase")
-	reject := purchaseConfirmMenu.Data("Reject", "reject-purchase")
-	purchaseConfirmMenu.Inline(purchaseConfirmMenu.Row(approve, reject))
-	h.purchaseConfirmMenu = purchaseConfirmMenu
+	h.buildAdminConfirmationMenu()
+
+	h.buildMainMenu(validateUserMiddleware, activeUserMiddleware)
 
 	bot.Handle("/start", h.Register)
-	bot.Handle("/usage", h.TrafficUsage, validateUserMiddleware)
-	bot.Handle("/sub", h.Sub, validateUserMiddleware, activeUserMiddleware)
-	bot.Handle("/purchase", h.Purchase, validateUserMiddleware)
 	bot.Handle(tele.OnPhoto, h.PurchaseReceipt, validateUserMiddleware, activeUserMiddleware)
-	bot.Handle(&approve, h.ApprovePurchase)
-	bot.Handle(&reject, h.RejectPurchase)
-
-	// Dynamic handler for purchase buttons
-	for _, btn := range btns {
-		bot.Handle(&btn, h.HandlePackagePurchase, validateUserMiddleware)
-	}
+	bot.Handle(&backButton, h.MainMenu)
 
 	// Setup channel notification
-	h.purchaseNotifyChannel = make(chan repo.PurchaseNotify)
+	h.purchaseNotifyChannel = make(chan core.AdminPurchaseNotify)
 	h.adminGroupId = tele.ChatID(-1001514626412) // I was told by god themselves to hard code it xD
+
 	go h.StartNotifyingAdmins()
 	go h.StartNotifyingUsers()
-
 	// Start periodic runners
 	go h.userService.SpawnRunners()
 	return &h
@@ -155,14 +131,21 @@ type BotHandler struct {
 
 	log *zap.SugaredLogger
 
+	menu                *tele.ReplyMarkup
 	purchaseMenu        *tele.ReplyMarkup
 	purchaseConfirmMenu *tele.ReplyMarkup
+	purchaseMethodMenu  *tele.ReplyMarkup
+	usageMenu           *tele.ReplyMarkup
+	helpMenu            *tele.ReplyMarkup
+	subMenu             *tele.ReplyMarkup
 
 	packages         map[string]*models.Package
 	packageImageFile tele.File
 
 	adminGroupId          tele.ChatID
-	purchaseNotifyChannel chan repo.PurchaseNotify
+	purchaseNotifyChannel chan core.AdminPurchaseNotify
+	// a simple cache to hold which package the user wants to buy
+	orderCache map[int64]string
 
 	userNotifyChannel chan core.Notification
 }
@@ -208,11 +191,28 @@ func (b *BotHandler) StartNotifyingUsers() {
 			msg = msgUserTrafficLimitReached
 		}
 
-		_, err := b.bot.Send(&tele.User{ID: int64(notify.User.Tid)}, msg)
+		_, err := b.bot.Send(&tele.User{ID: int64(notify.User.Tid)}, msg, b.menu)
 		if err != nil {
 			b.log.Error(err)
 		}
 	}
+}
+
+func (b *BotHandler) sendMenu(c tele.Context, what interface{}, opts ...interface{}) error {
+	_, err := b.bot.Edit(c.Message(), what, opts...)
+	return err
+}
+
+func (b *BotHandler) send(c tele.Context, what interface{}, opts ...interface{}) error {
+	return c.Send(what, opts...)
+}
+
+func (b *BotHandler) MainMenu(c tele.Context) error {
+	return b.sendMenu(c, msgMenu, b.menu)
+}
+
+func (b *BotHandler) Help(c tele.Context) error {
+	return b.sendMenu(c, "Help", b.helpMenu)
 }
 
 func (b *BotHandler) Register(c tele.Context) error {
@@ -223,31 +223,36 @@ func (b *BotHandler) Register(c tele.Context) error {
 	_, err := b.userService.Status(tid)
 	if err == nil {
 		//return c.Send(msgAlreadyRegistered)
-		return c.Send(msgRegistrationSuccess)
+		_ = c.Send(msgRegistrationSuccess)
+		return b.send(c, msgMenu, b.menu)
 	}
 	if !errors.Is(err, e.UserNotFound) { // Any error other than UserNotFound considered as 5xx
-		return c.Send(msgWtf)
+		return b.send(c, msgMenu, b.menu)
 	}
 
 	// Register the user on bot and every available panel
 
 	err = b.userService.Register(tid, username, "")
 	if err != nil {
-		return c.Send(msgRegistrationFailed)
+		return c.Send(msgRegistrationFailed, b.menu)
 	}
-	return c.Send(msgRegistrationSuccess)
+	_ = c.Send(msgRegistrationSuccess)
+	return b.send(c, msgMenu, b.menu)
 }
 
 func (b *BotHandler) TrafficUsage(c tele.Context) error {
 	user := c.Get("userObj").(*models.Tuser)
 	remaining := user.R.Package.TrafficAllowed - user.TrafficUsage
-	return c.Send(fmt.Sprintf(msgTraffic, user.TrafficUsage, remaining))
+	if remaining < 0 {
+		remaining = 0
+	}
+	return b.sendMenu(c, fmt.Sprintf(msgTraffic, user.TrafficUsage, remaining), b.usageMenu)
 }
 
 func (b *BotHandler) Sub(c tele.Context) error {
 	user := c.Get("userObj").(*models.Tuser)
 	baseUrl, _ := url.JoinPath("https://", b.domainAddr, "/v1/sub/")
-	return c.Send(msgSubLinkAndroid + baseUrl + user.Token)
+	return b.sendMenu(c, msgSubLinkAndroid+baseUrl+user.Token, b.subMenu)
 }
 
 func (b *BotHandler) Purchase(c tele.Context) error {
@@ -267,7 +272,9 @@ func (b *BotHandler) Purchase(c tele.Context) error {
 		Height:  0,
 		Caption: msgPackageDetailWithPicture,
 	}
-	err := c.Send(&msg, b.purchaseMenu)
+	_ = c.Delete()
+	_ = c.Send(&msg)
+	err := b.send(c, msgPackageChoosePackage, b.purchaseMenu)
 	if err == nil && !b.packageImageFile.InCloud() {
 		_ = repo.SetKeyVal(packageImgCloudId, msg.File.FileID)
 		b.packageImageFile.FileID = msg.File.FileID
@@ -275,28 +282,17 @@ func (b *BotHandler) Purchase(c tele.Context) error {
 	return err
 }
 
-func (b *BotHandler) HandlePackagePurchase(c tele.Context) error {
+func (b *BotHandler) ChoosePurchaseMethod(c tele.Context) error {
 	buttonUniqueName := c.Callback().Unique
 	p, ok := b.packages[buttonUniqueName]
 	if !ok {
 		b.log.Errorw("invalid callback button", "uniqueName", buttonUniqueName)
-		return c.Send(msgInvalidButtonCallback)
+		return b.sendMenu(c, msgMenu, b.menu)
 	}
-	user := c.Get("userObj").(*models.Tuser)
-	err := b.userService.CreatePurchase(user, p, c.Message().ID)
-	if err != nil {
-		b.log.Errorw("cannot create new purchase", "detail", err)
-		return c.Send(msgPurchaseProcessFailed)
-	}
-
-	cardNum, err := b.userService.GetRandomBankCard()
-	if err != nil {
-		b.log.Error(err)
-		return c.Send(msgPurchaseProcessFailed)
-	}
+	b.orderCache[c.Sender().ID] = buttonUniqueName
 	printer := message.NewPrinter(language.English)
-	_ = c.Delete()
-	return c.Send(fmt.Sprintf(msgPurchasePackage, p.Name, printer.Sprintf("%d", p.Price), printer.Sprintf("%d", p.Price*10), cardNum))
+	msg := fmt.Sprintf(msgPurchaseChooseMethod, p.Name, printer.Sprintf("%d", p.Price), printer.Sprintf("%d", p.Price*10))
+	return b.sendMenu(c, msg, b.purchaseMethodMenu)
 }
 
 func (b *BotHandler) PurchaseReceipt(c tele.Context) error {

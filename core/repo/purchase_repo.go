@@ -9,7 +9,6 @@ import (
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
-	tele "gopkg.in/telebot.v3"
 	"time"
 )
 
@@ -21,6 +20,7 @@ const (
 	PurchaseIsProcessing
 	PurchaseRejected
 	PurchaseCancelled
+	PurchaseWaitingForBankCallback
 )
 
 func InsertPurchase(purchase *models.Purchase) error {
@@ -71,20 +71,33 @@ func SetPurchaseAsProcessing(purchase *models.Purchase) error {
 	purchase.ProcessedAt = null.TimeFrom(time.Now())
 	purchase.Status = int64(PurchaseIsProcessing)
 	if _, err := purchase.Update(context.Background(), tx, boil.Infer()); err != nil {
-		return tx.Rollback()
+		tx.Rollback()
+		return err
 	}
 	// set all other unknown purchases as cancelled for this user
 	//m := models.M{models.PurchaseColumns.Status: PurchaseCancelled}
 	q := qm.SQL("UPDATE purchase SET status = ? WHERE status = ? and tuser_id = ?", int64(PurchaseCancelled), int64(PurchaseUnknown), purchase.TuserID)
 	if _, err := models.Purchases(q).Exec(tx); err != nil {
-		return tx.Rollback()
+		tx.Rollback()
+		return err
 	}
 	return tx.Commit()
 }
 
-// PurchaseNotify used to send notification to admins on new purchase event
-type PurchaseNotify struct {
-	Tuser    *models.Tuser
-	Purchase *models.Purchase
-	Photo    *tele.Photo
+// CreatePurchase creates a new order purchase and will cancel previous unprocessed purchases
+func CreatePurchase(purchase *models.Purchase) error {
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	if err := purchase.Insert(context.Background(), tx, boil.Infer()); err != nil {
+		return err
+	}
+	purchase.ProcessedAt = null.TimeFrom(time.Now())
+	// set all other unknown purchases as cancelled for this user
+	q := qm.SQL("UPDATE purchase SET status = ? WHERE status = ? and tuser_id = ?", int64(PurchaseCancelled), int64(PurchaseUnknown), purchase.TuserID)
+	if _, err := models.Purchases(q).Exec(tx); err != nil {
+		return tx.Rollback()
+	}
+	return tx.Commit()
 }

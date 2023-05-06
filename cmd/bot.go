@@ -7,19 +7,35 @@ import (
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/telbot"
 	"github.com/spf13/cobra"
+	"log"
+	"net/url"
+	"os"
 )
 
 var certFilePath string
 var keyFilePath string
 var domain string
+var callbackUrl string
 
 var botCmd = &cobra.Command{
 	Use:   "bot",
 	Short: "Start bot",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		bh := telbot.NewBotHandler(domain)
-		restHandler := api.NewRestHandler()
+		nextPayApiKey := os.Getenv("NEXTPAY_API_KEY")
+		if nextPayApiKey == "" {
+			log.Fatal("api_key required")
+		}
+		callbackPath := "npcallback"
+		if callbackUrl == "" {
+			callbackUrl, _ = url.JoinPath("https://", domain, callbackPath)
+		}
+		terminal := core.NewNextPayTerminal(nextPayApiKey, callbackUrl)
+
+		userService := core.NewUserService(terminal)
+
+		bh := telbot.NewBotHandler(userService, domain)
+		restHandler := api.NewRestHandler(userService, callbackPath)
 		go restHandler.Start(certFilePath, keyFilePath)
 		bh.Start()
 	},
@@ -54,6 +70,7 @@ func init() {
 	botCmd.Flags().StringVar(&certFilePath, "cert", "fullchain.pem", "specify the path to cert file")
 	botCmd.Flags().StringVar(&keyFilePath, "key", "privkey.pem", "specify the path to key file")
 	botCmd.Flags().StringVar(&domain, "domain", "", "specify the domain address (which is certified by the --cert file) to serve the sub-link")
+	botCmd.Flags().StringVar(&callbackUrl, "callback", "", "specify the callback url address to be used by nextpay.org. Automatically set based on --domain argument")
 	botCmd.MarkFlagRequired("cert")
 	botCmd.MarkFlagRequired("key")
 	botCmd.MarkFlagRequired("domain")

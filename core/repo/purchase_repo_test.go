@@ -18,7 +18,6 @@ func TestSetPurchaseAsProcessing(t *testing.T) {
 		Price:       pck.Price,
 		PackageName: pck.Name,
 		Status:      int64(PurchaseConfirmed),
-		MSGID:       741,
 	}
 	p2 := &models.Purchase{
 		TuserID:     users[0].ID,
@@ -26,7 +25,6 @@ func TestSetPurchaseAsProcessing(t *testing.T) {
 		Price:       pck.Price,
 		PackageName: pck.Name,
 		Status:      int64(PurchaseUnknown),
-		MSGID:       742,
 	}
 	p3 := &models.Purchase{
 		TuserID:     users[0].ID,
@@ -34,7 +32,6 @@ func TestSetPurchaseAsProcessing(t *testing.T) {
 		Price:       pck.Price,
 		PackageName: pck.Name,
 		Status:      int64(PurchaseUnknown),
-		MSGID:       743,
 	}
 	p21 := &models.Purchase{
 		TuserID:     users[1].ID,
@@ -42,7 +39,6 @@ func TestSetPurchaseAsProcessing(t *testing.T) {
 		Price:       pck.Price,
 		PackageName: pck.Name,
 		Status:      int64(PurchaseUnknown),
-		MSGID:       10081,
 	}
 	InsertPurchase(p1)
 	InsertPurchase(p2)
@@ -51,10 +47,10 @@ func TestSetPurchaseAsProcessing(t *testing.T) {
 
 	user0Purchase, err := LastPurchasesByUserId(users[0].ID, PurchaseConfirmed)
 	assert.NoError(t, err)
-	assert.Equal(t, user0Purchase.MSGID, int64(741))
+	assert.Equal(t, user0Purchase.ID, p1.ID)
 	user0Purchase, err = LastPurchasesByUserId(users[0].ID, PurchaseUnknown)
 	assert.NoError(t, err)
-	assert.Equal(t, user0Purchase.MSGID, int64(743))
+	assert.Equal(t, user0Purchase.ID, p3.ID)
 
 	// Remove users[0] purchases, exactly 1 of them must be cancelled
 	err = SetPurchaseAsProcessing(user0Purchase)

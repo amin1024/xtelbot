@@ -91,9 +91,9 @@ func TestGetUser(t *testing.T) {
 	}
 	assert.NoError(t, tu.Insert(context.Background(), db, boil.Infer()))
 
-	// We expect GetUserByTid to ignore the `tid=111` because it is not activated yet
-	_, err = GetUserByTid(111)
-	assert.ErrorIs(t, err, e.UserNotFound)
+	// We expect GetUserByTid to consider deactivated users and return user.Active == false
+	user, err := GetUserByTid(111)
+	assert.False(t, user.Active)
 
 	// Activate the user
 	tu.Active = true
