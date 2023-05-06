@@ -1,6 +1,7 @@
 package api
 
 import (
+	"embed"
 	"fmt"
 	"github.com/amin1024/xtelbot/conf"
 	"github.com/amin1024/xtelbot/core"
@@ -10,6 +11,12 @@ import (
 	"net/http"
 	"strconv"
 )
+
+//go:embed successful_purchase.html
+var successfulPurchaseHtml embed.FS
+
+//go:embed failed_purchase.html
+var failedPurchaseHtml embed.FS
 
 type RestHandler struct {
 	router     *mux.Router
@@ -25,11 +32,11 @@ type RestHandler struct {
 func NewRestHandler(userService *core.UserService, callbackPath string) *RestHandler {
 	log := conf.NewLogger()
 
-	successfulCallback, err := template.ParseFiles("api/successful_purchase.html")
+	successfulCallback, err := template.ParseFS(successfulPurchaseHtml, "successful_purchase.html")
 	if err != nil {
 		log.Fatal(err)
 	}
-	failedCallback, err := template.ParseFiles("api/failed_purchase.html")
+	failedCallback, err := template.ParseFS(failedPurchaseHtml, "failed_purchase.html")
 	if err != nil {
 		log.Fatal(err)
 	}
