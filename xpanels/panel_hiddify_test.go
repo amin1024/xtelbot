@@ -152,14 +152,16 @@ func TestHiddifyPanel_renovateV2rayConfig(t *testing.T) {
 		trojan://a038567c-e119-4111-a526-bc57a8185810@api.google.info:443?&sni=api.google.info&host=api.google.info#tls_tcp_trojan
 		`
 	mr := &mockedRepo{}
+	rules, _ := mr.GetGroupedRules()
 	p := &HiddifyPanel{
-		name: "test",
-		repo: mr,
-		xray: nil,
-		log:  newMockedLog(),
+		name:      "test",
+		repo:      mr,
+		xray:      nil,
+		log:       newMockedLog(),
+		renovator: &RuleRenovator{groupRules: rules},
 	}
 
-	newSub, err := p.Renovate(strings.NewReader(subContent))
+	newSub, err := p.renovator.Renovate(strings.NewReader(subContent), "")
 	assert.NoError(t, err)
 	// assert there are exactly the same number of lines after renovation
 	assert.Equal(t, strings.Contains(subContent, "\n"), strings.Contains(newSub, "\n"))

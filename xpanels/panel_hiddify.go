@@ -10,11 +10,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
 	"log"
-	"net/http"
 	"net/url"
-	"strings"
+	"os"
 	"time"
 )
 
@@ -28,11 +26,19 @@ func NewHiddifyPanel(xs *XrayService, conf map[string]string) *HiddifyPanel {
 	repo := SetupHiddifyRepo(dbPath)
 	repo.migrate()
 
+	fPath, _ := conf["subFile"]
+	b, err := os.ReadFile(fPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &HiddifyPanel{
 		name: name,
 		repo: repo,
 		xray: xs,
 		log:  log,
+
+		renovator: NewRenovatorFromFile(string(b)),
 	}
 }
 
@@ -53,6 +59,8 @@ type HiddifyPanel struct {
 	repo IHiddifyPanelRepo
 	xray *XrayService
 	log  *zap.SugaredLogger
+
+	renovator SubRenovator
 }
 
 func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, error) {
@@ -170,94 +178,11 @@ func (panel *HiddifyPanel) GetSub(ctx context.Context, uInfo *pb.UserInfoReq) (*
 		panel.log.Errorw("[db] GetUser error", "uuid", uid, "detail", err)
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid UUID: %s", uid))
 	}
-	links, err := panel.generateSubLinks(uid)
-	if err != nil {
-		panel.log.Error(err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	var response *http.Response
-	// Fetch the first successful uri and ignore others
-	for _, uri := range links {
-		response, err = http.Get(uri) // TODO: add timeout context
-		if err != nil || response.StatusCode != http.StatusOK {
-			continue
-		}
-		break
-	}
-	if response == nil { // All URIs failed
-		panel.log.Errorw("failed to fetch sub-content from sub-links", "user-uuid", uid, "links", links)
-		return nil, status.Error(codes.Internal, "failed to fetch sub-links")
-	}
-	defer func() {
-		if response.Body != nil {
-			response.Body.Close()
-		}
-	}()
-	newSubContent, err := panel.Renovate(response.Body)
+	newSubContent, err := panel.renovator.Renovate(nil, uid)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.SubContent{Content: newSubContent}, nil
-}
-
-func (panel *HiddifyPanel) Renovate(subContent io.Reader) (string, error) {
-	var result []string
-
-	data, err := io.ReadAll(subContent)
-	if err != nil {
-		return "", err
-	}
-	// Parse content assuming every V2ray config is being seperated by '\n'
-	lines := strings.Split(string(data), "\n")
-	if len(lines) < 10 { // Hack around it, todo
-		return "", fmt.Errorf("is a sub content with %d len valid", len(data))
-	}
-
-	groupSpecs, err := panel.repo.GetGroupedRules()
-	if err != nil {
-		panel.log.Error(err)
-		return "", err
-	}
-
-	// renovate every v2ray config found in the sub
-	for _, line := range lines {
-		if len(line) < 10 {
-			continue
-		}
-		v2rayUri := strings.TrimSpace(line)
-		if strings.HasPrefix(v2rayUri, "#") {
-			result = append(result, line)
-			continue
-		}
-		split := strings.Split(v2rayUri, "#")
-		if len(split) != 2 {
-			panel.log.Warnw(unreachableMsg, "v2rayUri", v2rayUri)
-			continue
-		}
-		rules, ok := groupSpecs[split[1]] // split[1] gives us the #remark in uri
-		if ok {
-			v2rayUri = panel.renovateV2rayConfig(v2rayUri, rules)
-		}
-		result = append(result, v2rayUri)
-	}
-	if len(result) == 0 {
-		return "", fmt.Errorf("sub-content without any valid v2ray config")
-	}
-
-	return strings.Join(result, "\n"), nil
-}
-
-// renovateV2rayConfig receives a single v2ray uri and modify it according to the rules.
-// Example uri vless://UUID@SERVER:PORT?security=tls&sni=SNI&type=grpc&serviceName=GRPC-NAME&#REMARK
-// We want to replace the #REMARK and :PORT, Therefore, two rules needed to be passed to this method.
-func (panel *HiddifyPanel) renovateV2rayConfig(v2rayUri string, specs []RenovateRule) string {
-	for _, spec := range specs {
-		if spec.Ignore {
-			return "# IGNORED #"
-		}
-		v2rayUri = strings.ReplaceAll(v2rayUri, spec.OldValue, spec.NewValue)
-	}
-	return v2rayUri
 }
 
 func (panel *HiddifyPanel) GetUserInfo(ctx context.Context, uInfo *pb.UserInfoReq) (*pb.UserInfo, error) {

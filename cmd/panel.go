@@ -12,6 +12,7 @@ var dbPath string
 var resetScript string
 var port string
 var xrayPort string
+var subFile string
 
 var pargs = make(map[string]string)
 
@@ -26,6 +27,7 @@ var panelCmd = &cobra.Command{
 		pargs["resetScript"] = resetScript
 		pargs["port"] = port
 		pargs["xrayPort"] = xrayPort
+		pargs["subFile"] = subFile
 
 		xpanels.StartXPanel(pargs)
 	},
@@ -68,6 +70,7 @@ func init() {
 	panelCmd.PersistentFlags().StringVar(&resetScript, "", "", "TBD")
 	panelCmd.PersistentFlags().StringVar(&port, "port", "7777", "port to be used by panel manager")
 	panelCmd.Flags().StringVar(&xrayPort, "xray-port", "10085", "port to connect to xray-core")
+	panelCmd.Flags().StringVar(&subFile, "sub-file", "sub.txt", "a template file for subscription link")
 	panelCmd.MarkPersistentFlagRequired("type")
 	panelCmd.MarkPersistentFlagRequired("db")
 	panelCmd.MarkPersistentFlagRequired("xray-port")
