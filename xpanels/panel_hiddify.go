@@ -70,15 +70,21 @@ func (panel *HiddifyPanel) Ping(_ context.Context, _ *pb.Empty) (*pb.Empty, erro
 func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb.Response, error) {
 	panel.log.Info("Received AddUser cmd ->", cmd)
 	//// 1- Add a user to panel's database
-	if err := panel.add2panel(cmd); err != nil {
+	err := panel.add2panel(cmd)
+	if err != nil {
+		// if this user already exists on db, return a successful response
+		err2, ok := err.(sqlite3.Error)
+		if ok && err2.Code == sqlite3.ErrConstraint {
+			return &pb.Response{}, nil
+		}
 		panel.log.Error("failed to add user to hiddify-db:", err)
 		return &pb.Response{}, status.Error(codes.Internal, err.Error())
 	}
 	// 2- Add a client to xray-core
-	err := panel.add2xray(cmd)
+	err = panel.add2xray(cmd)
 	if err != nil {
 		panel.log.Error("failed to add user to xray-core:", err)
-		return &pb.Response{}, status.Error(codes.Aborted, fmt.Errorf("partially done: %w", err).Error())
+		return &pb.Response{}, status.Error(codes.Aborted, err.Error())
 	}
 	panel.log.Infow("Successfully added user to inbounds", "~tid", cmd.Tid, "~username", cmd.TUsername)
 	// 3- Return a Response to the bot
@@ -95,18 +101,11 @@ func (panel *HiddifyPanel) add2panel(cmd *pb.AddUserCmd) error {
 	lastOnline := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	startDate := now.Format("2006-01-02")
 
-	err = panel.repo.InsertUser(cmd.Uuid, cmd.TUsername, expireTime, startDate, cmd.Package.Mode, lastOnline, cmd.Package.TrafficAllowed, cmd.Package.PackageDays)
-	// ignore if user already exists
-	if err != nil {
-		err, ok := err.(sqlite3.Error)
-		if !ok || err.Code != sqlite3.ErrConstraint {
-			return err
-		}
-	}
-	return nil
+	return panel.repo.InsertUser(cmd.Uuid, cmd.TUsername, expireTime, startDate, cmd.Package.Mode, lastOnline, cmd.Package.TrafficAllowed, cmd.Package.PackageDays)
 }
 
 func (panel *HiddifyPanel) add2xray(cmd *pb.AddUserCmd) error {
+	var err error
 	x := XClient{
 		Uuid:    cmd.Uuid,
 		Email:   cmd.Uuid + "@" + panel.name,
@@ -120,14 +119,14 @@ func (panel *HiddifyPanel) add2xray(cmd *pb.AddUserCmd) error {
 	}
 	nOfErrs := 0
 	for _, name := range inboundNames {
-		err := panel.xray.AddClient(x, name)
+		err = panel.xray.AddClient(x, name)
 		if err != nil {
 			nOfErrs++
 		}
 	}
 	if nOfErrs > len(inboundNames)*2/3 {
 		// failed for more than 2/3 of inbounds
-		return fmt.Errorf("%d failed out of %d", nOfErrs, len(inboundNames))
+		return fmt.Errorf("%d/%d inbounds failed - reason: %s", nOfErrs, len(inboundNames), err)
 	}
 
 	return nil

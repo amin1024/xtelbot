@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/amin1024/xtelbot/api"
 	"github.com/amin1024/xtelbot/core"
+	"github.com/amin1024/xtelbot/core/repo"
 	"github.com/amin1024/xtelbot/core/repo/models"
 	"github.com/amin1024/xtelbot/telbot"
 	"github.com/spf13/cobra"
@@ -51,15 +52,22 @@ var addXNodeCmd = &cobra.Command{
 			fmt.Println("Invalid arguments. Please specify a valid address (host:port) and a panel type.")
 			return
 		}
+
+		repo.SetupDb("db.db")
+		repo.SetupPackage()
+		repo.AutoMigrate()
+
+		srv := core.NewNodesService()
 		node := models.Xnode{
 			Address:   args[0],
 			PanelType: args[1],
 		}
-		if err := core.AddXNode(&node); err != nil {
+
+		if err := srv.AddXNode(&node); err != nil {
 			fmt.Println("failed. " + err.Error())
 			return
 		}
-		fmt.Println("XNode added.")
+		fmt.Println("\nXNode added. Users are synced.")
 	},
 }
 

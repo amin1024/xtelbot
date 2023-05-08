@@ -21,16 +21,16 @@ type xNode struct {
 
 // -----------------------------------------------------------------
 
-type nodesService struct {
+type NodesService struct {
 	nodes []*xNode
 	log   *zap.SugaredLogger
 
 	sync.Mutex
 }
 
-var nodesServiceSingleton *nodesService
+var nodesServiceSingleton *NodesService
 
-func newNodesService() *nodesService {
+func NewNodesService() *NodesService {
 	if nodesServiceSingleton != nil {
 		return nodesServiceSingleton
 	}
@@ -39,9 +39,11 @@ func newNodesService() *nodesService {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	srv := NodesService{}
 	var nodes []*xNode
 	for _, node := range nodesModels {
-		client, err := ConnectToXNode(node)
+		client, err := srv.connectToXNode(node)
 		if err != nil {
 			log.Errorw("XNode warmup failed", "~address", node.Address)
 			continue
@@ -53,20 +55,19 @@ func newNodesService() *nodesService {
 	}
 	log.Infof("connected to %d XNodes", len(nodes))
 	// TODO: fatal error when there is no available client connection (success==0)
-	nodesServiceSingleton = &nodesService{
-		nodes: nodes,
-		log:   log,
-	}
 
-	return nodesServiceSingleton
+	srv.nodes = nodes
+	srv.log = log
+
+	return &srv
 }
 
-func (x *nodesService) ListXNodes() ([]xNode, error) {
+func (x *NodesService) ListXNodes() ([]xNode, error) {
 	return []xNode{}, nil
 }
 
 // AddUser sends a AddUserCmd to every server, returns the number of successful adds.
-func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
+func (x *NodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 	success := 0
 	wg := sync.WaitGroup{}
 	for _, node := range x.nodes {
@@ -92,7 +93,7 @@ func (x *nodesService) AddUser(cmd *pb.AddUserCmd) (int, error) {
 	return success, nil
 }
 
-func (x *nodesService) GetSubs(user *models.Tuser) []string {
+func (x *NodesService) GetSubs(user *models.Tuser) []string {
 	var result []string
 	wg := sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -120,7 +121,7 @@ func (x *nodesService) GetSubs(user *models.Tuser) []string {
 	return result
 }
 
-func (x *nodesService) GetTrafficUsage(uid string) float32 {
+func (x *NodesService) GetTrafficUsage(uid string) float32 {
 	x.Lock()
 	defer x.Unlock()
 	ch := make(chan float32, len(x.nodes))
@@ -142,7 +143,7 @@ func (x *nodesService) GetTrafficUsage(uid string) float32 {
 	return totalUsage
 }
 
-func (x *nodesService) UpgradeUserPackage(userUuid string, pck *models.Package) error {
+func (x *NodesService) UpgradeUserPackage(userUuid string, pck *models.Package) error {
 	expireAt := time.Now().Add(time.Hour * 24 * time.Duration(pck.Duration))
 	cmd := &pb.AddPackageCmd{
 		Uuid: userUuid,
@@ -174,7 +175,7 @@ func (x *nodesService) UpgradeUserPackage(userUuid string, pck *models.Package) 
 
 //------------------------------------------------
 
-func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
+func (x *NodesService) connectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	c, err := grpc.DialContext(
@@ -194,17 +195,43 @@ func ConnectToXNode(node *models.Xnode) (pb.XNodeGrpcClient, error) {
 	return client, nil
 }
 
-func AddXNode(node *models.Xnode) error {
-	repo.SetupDb("db.db")
-	repo.AutoMigrate()
-	// TODO: we need a way to populate the new server by all the users we already have
+func (x *NodesService) AddXNode(node *models.Xnode) error {
 	// Find a better way to support data consistency! all nodes must be on the same state
-	_, err := ConnectToXNode(node)
+	client, err := x.connectToXNode(node)
 	if err != nil {
 		return err
 	}
 	if err := repo.SaveOrUpdateXNode(node); err != nil {
 		return err
 	}
+	// TODO: improve it by sending batch users
+	// Sync the users one by one
+	users, err := repo.GetAllUsersWithPackages()
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, user := range users {
+		pck := user.R.Package
+		expireAt := time.Now().Add(time.Hour * 24 * time.Duration(pck.Duration))
+		cmd := &pb.AddUserCmd{
+			Tid:       user.Tid,
+			TUsername: user.Username,
+			Uuid:      user.UUID,
+			Package: &pb.Package{
+				TrafficAllowed: pck.TrafficAllowed,
+				ExpireAt:       expireAt.Format(time.RFC3339),
+				PackageDays:    pck.Duration,
+				Mode:           pck.ResetMode,
+			},
+		}
+		if _, err := client.AddUser(context.Background(), cmd); err != nil {
+			errs = append(errs, fmt.Errorf("tid: %d - %w", user.Tid, err))
+		}
+	}
+	if len(errs) != 0 {
+		x.log.Warnw("failed to sync users", "detail", errs)
+	}
+	x.log.Infof("successfully synced %d users", len(users))
 	return nil
 }

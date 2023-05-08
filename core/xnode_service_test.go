@@ -39,12 +39,12 @@ func (m *mockedClient) UpgradeUserPackage(ctx context.Context, in *pb.AddPackage
 }
 
 //
-//func newMockedNodesService() *nodesService {
+//func newMockedNodesService() *NodesService {
 //	return
 //}
 
 func TestNodesService_GetTrafficUsage(t *testing.T) {
-	s := &nodesService{
+	s := &NodesService{
 		nodes: []*xNode{
 			&xNode{
 				data:   nil,

@@ -22,7 +22,7 @@ func NewUserService(terminal PaymentTerminal) *UserService {
 	repo.SetupDb("db.db")
 	repo.AutoMigrate()
 	repo.SetupPackage()
-	s := newNodesService()
+	s := NewNodesService()
 	userService := &UserService{
 		log:             log,
 		nodesService:    s,
@@ -38,7 +38,7 @@ type UserService struct {
 	notificationChannels []chan<- Notification
 
 	log          *zap.SugaredLogger
-	nodesService *nodesService
+	nodesService *NodesService
 
 	paymentTerminal PaymentTerminal
 }

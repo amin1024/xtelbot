@@ -8,12 +8,12 @@ import (
 
 func NewSubService() *SubService {
 	return &SubService{
-		nodesService: newNodesService(),
+		nodesService: NewNodesService(),
 	}
 }
 
 type SubService struct {
-	nodesService *nodesService
+	nodesService *NodesService
 }
 
 // GenerateUserSub requests user's sub-content from xNodes and merge them together

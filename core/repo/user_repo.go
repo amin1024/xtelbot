@@ -89,3 +89,12 @@ func GetAllUsers() ([]*models.Tuser, error) {
 
 	return users, err
 }
+
+func GetAllUsersWithPackages() ([]*models.Tuser, error) {
+	users, err := models.Tusers(
+		models.TuserWhere.Active.EQ(true),
+		qm.Load(models.TuserRels.Package),
+	).All(context.Background(), db)
+
+	return users, err
+}
