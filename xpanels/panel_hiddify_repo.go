@@ -98,12 +98,13 @@ func (r *HiddifyPanelRepo) InsertUser(
 	trafficAllowed float32, packageDays int64,
 ) error {
 	q := `INSERT INTO user
-    (uuid, name, last_online, expiry_time, usage_limit_GB, package_days, mode, start_date, current_usage_GB)
-	values(?, ?, ?, ?, ?, ?, ?, ?, ?);`
+    (uuid, name, last_online, expiry_time, usage_limit_GB, package_days, mode, start_date, current_usage_GB, enable, max_ips)
+	values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
+	maxIps := 1000 // hiddify v0.6.x, unknown field!
 	_, err := r.db.Exec(
 		q,
 		uid, username, lastOnline, expireTime, trafficAllowed, packageDays,
-		mode, startDate, 0,
+		mode, startDate, 0, true, maxIps,
 	)
 	return err
 }

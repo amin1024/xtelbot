@@ -40,7 +40,7 @@ func NewNodesService() *NodesService {
 		log.Fatal(err)
 	}
 
-	srv := NodesService{}
+	srv := &NodesService{}
 	var nodes []*xNode
 	for _, node := range nodesModels {
 		client, err := srv.connectToXNode(node)
@@ -58,8 +58,8 @@ func NewNodesService() *NodesService {
 
 	srv.nodes = nodes
 	srv.log = log
-
-	return &srv
+	nodesServiceSingleton = srv
+	return srv
 }
 
 func (x *NodesService) ListXNodes() ([]xNode, error) {

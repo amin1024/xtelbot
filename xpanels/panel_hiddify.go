@@ -73,8 +73,8 @@ func (panel *HiddifyPanel) AddUser(ctx context.Context, cmd *pb.AddUserCmd) (*pb
 	err := panel.add2panel(cmd)
 	if err != nil {
 		// if this user already exists on db, return a successful response
-		err2, ok := err.(sqlite3.Error)
-		if ok && err2.Code == sqlite3.ErrConstraint {
+		err, ok := err.(sqlite3.Error)
+		if ok && err.ExtendedCode == sqlite3.ErrConstraintUnique {
 			return &pb.Response{}, nil
 		}
 		panel.log.Error("failed to add user to hiddify-db:", err)
